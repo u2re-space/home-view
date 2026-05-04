@@ -1,0 +1,291 @@
+@use "../../../lib/core/orient/viewport" as *;
+
+//
+@property --item-size {
+    syntax: "<length-percentage>";
+    inherits: true;
+    initial-value: 100%;
+}
+
+//
+@layer ux-gridbox {
+
+    //
+    .ui-gridlayout {
+        @include compute_orient_grid_layout();
+
+        //
+        & {
+            --c-gap: clamp(min(1rem, 8cqmin), min(calc(8cqmin / min(var(--layout-c, 4), var(--layout-r, 8))), calc(6cqmax / max(var(--layout-c, 4), var(--layout-r, 8)))), min(4rem, 16cqmin));
+            --r-gap: clamp(min(1rem, 8cqmin), min(calc(8cqmin / min(var(--layout-c, 4), var(--layout-r, 8))), calc(6cqmax / max(var(--layout-c, 4), var(--layout-r, 8)))), min(4rem, 16cqmin));
+        }
+
+        //
+        & {
+            //display: block flow;
+            display: block grid !important;
+            position: relative !important;
+
+            //
+            container-name: u2-grid;
+
+            //
+            zoom: 1;
+            direction: ltr;
+
+            //
+            pointer-events: none !important;
+            background-color: transparent;
+
+            //
+            inline-size: stretch;
+            block-size: stretch;
+
+            // for correct working of grid items
+            container-type: normal !important;
+            overflow: visible !important;
+            contain: none !important;
+            padding: 0px !important;
+            gap: 0px !important;
+
+            //
+            max-inline-size: min(100%, min(100cqi, 100dvi)) !important;
+            max-block-size: min(100%, min(100cqb, 100dvb)) !important;
+            box-sizing: border-box !important;
+
+            //
+            grid-template-columns: repeat(round(nearest, var(--cs-layout-c, 4), 1), minmax(0px, 1fr)) !important;
+            grid-template-rows: repeat(round(nearest, var(--cs-layout-r, 8), 1), minmax(0px, 1fr)) !important;
+
+            //
+            /*justify-content: safe start !important;
+            align-content: safe start !important;
+            justify-items: safe start !important;
+            align-items: safe start !important;*/
+
+            place-content: center !important;
+            place-items: center !important;
+            text-align: center !important;
+
+            //
+            grid-row: 1 / -1;
+            grid-column: 1 / -1;
+        }
+
+        //
+        .ui-ws-item {
+            cursor: pointer;
+            user-select: none;
+            pointer-events: auto;
+    
+            span {
+                pointer-events: none;
+                aspect-ratio: 1 / 1;
+                inline-size: fit-content;
+                block-size: fit-content;
+                display: inline;
+            }
+    
+            &:active,
+            &:has(:active) {
+                will-change: inset, translate, transform, opacity, z-index;
+                cursor: grabbing;
+            }
+        }
+
+        //
+        & > :where(*) {
+            @include compute_grid_item_cell();
+
+            // calculate visible size
+            & { --item-size: clamp(4rem, calc(100cqmax / min(var(--cs-layout-c, 4), var(--cs-layout-r, 8))), 5rem); }
+            & :where(*) {--drag-x: 0; --drag-y: 0; }
+
+            // dragging coordinate
+            & {
+                --drag-x: 0; --cs-drag-x: calc(var(--drag-x, 0) * 1px);
+                --drag-y: 0; --cs-drag-y: calc(var(--drag-y, 0) * 1px);
+            }
+
+            //
+            &:active, &:has(:active), *:active {
+                will-change: transform;
+            }
+
+            //
+            & {
+                grid-column: clamp(1, calc(1 + round(nearest, var(--cs-grid-c, 0), 1)), var(--cs-layout-c, 4)) !important;
+                grid-row: clamp(1, calc(1 + round(nearest, var(--cs-grid-r, 0), 1)), var(--cs-layout-r, 8)) !important;
+                cursor: pointer;
+
+                //
+                position: relative !important;
+                z-index: 1;
+                transform-origin: 50% 50% !important;
+                transform:
+                    translate3d(
+                        round(nearest, calc(var(--cs-drag-x, 0px) + var(--cs-transition-c, 0px)), calc(1px / var(--pixel-ratio, 1))),
+                        round(nearest, calc(var(--cs-drag-y, 0px) + var(--cs-transition-r, 0px)), calc(1px / var(--pixel-ratio, 1))),
+                        0px)
+                    scale3d(var(--scale, 1), var(--scale, 1), var(--scale, 1))
+                    translate3d(
+                        round(nearest, var(--translate-x, 0px), calc(1px / var(--pixel-ratio, 1))),
+                        round(nearest, var(--translate-y, 0px), calc(1px / var(--pixel-ratio, 1))),
+                        0px) !important;
+                translate: 0px 0px 0px !important;
+
+                //
+                inset: auto !important;
+                visibility: visible;
+
+                //
+                zoom: 1;
+                place-self: center !important;
+
+                //
+                min-inline-size: fit-content;
+                min-block-size: fit-content;
+
+                //
+                inline-size: var(--item-size, stretch);
+                block-size: var(--item-size, stretch);
+
+                //
+                max-inline-size: var(--item-size, stretch);
+                max-block-size: var(--item-size, stretch);
+
+                //
+                pointer-events: none;
+                touch-action: none;
+                user-select: none;
+                -webkit-user-drag: none;
+                -moz-user-drag: none;
+
+                //
+                overflow: visible;
+                contain: none;
+                isolation: isolate;
+
+                //
+                border: none 0px transparent;
+                outline: none 0px transparent;
+            }
+
+            //
+            &, & > *, & span {
+                --drag-distance: clamp(0, hypot(var(--dir-x, 0), var(--dir-y, 0)), 6);
+                --drag-duration: clamp(96ms, calc(var(--drag-distance, 0) * 110ms + 70ms), 360ms);
+                transition-behavior: allow-discrete;
+                transition-property: opacity, background-color, color;
+                transition-duration: var(--drag-duration);
+                transition-timing-function: cubic-bezier(0.22, 0.8, 0.3, 1);
+                transition-delay: 0ms;
+                background-image: none;
+
+                //
+                pointer-events: none;
+                border: none 0px transparent;
+                outline: none 0px transparent;
+                box-shadow: none;
+                touch-action: none;
+                filter: none;
+            }
+
+            //
+            & {
+                pointer-events: auto;
+            }
+
+            //
+            & span, &.span, & ui-icon, &.ui-icon, & label, &.label {
+                pointer-events: none;
+            }
+
+            //
+            ui-icon {
+                pointer-events: none;
+            }
+
+            //
+            @media (prefers-reduced-motion: reduce) {
+                & {
+                    transition-duration: 0ms;
+                    transition-timing-function: linear;
+                }
+            }
+
+            //
+            & > :where(*) {
+                inline-size: stretch;
+                block-size: stretch;
+                max-inline-size: stretch;
+                max-block-size: stretch;
+                min-inline-size: 1px;
+                min-block-size: 1px;
+                grid-column: 1 / -1;
+                grid-row: 1 / -1;
+            }
+        }
+
+        //
+        &.sd-grid--labels,
+        &[data-layer="labels"] {
+            pointer-events: none !important;
+            isolation: isolate;
+            mix-blend-mode: normal;
+
+            //
+            & > :where(*) {
+                pointer-events: none;
+            }
+
+            //
+            & > :where(.ui-ws-item-label) {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: flex-start;
+                gap: clamp(0.1rem, 0.35cqmin, 0.35rem);
+                inline-size: 100%;
+                block-size: stretch;
+                padding-block-start: clamp(0.25rem, 0.65cqmin, 0.65rem);
+                color: color-mix(in oklch, var(--on-surface-color) 78%, transparent 22%);
+                font-size: clamp(0.65rem, 1.35cqmin, 1rem);
+                font-weight: 500;
+                text-align: center;
+                text-wrap: balance;
+                letter-spacing: 0.015em;
+                text-shadow:
+                    0 1px 2px color-mix(in oklch, var(--surface-color) 35%, transparent),
+                    0 0 0.35rem color-mix(in oklch, var(--surface-color) 15%, transparent);
+                translate: 0 calc(clamp(0.25rem, 0.65cqmin, 0.65rem) + var(--cs-sw-unit-y, 0px));
+
+                //
+                span {
+                    pointer-events: none;
+                    user-select: none;
+                    max-inline-size: min(8ch, 100%);
+                    opacity: clamp(0.75, 0.9, 1);
+                    contain: layout paint; // Optimization: isolate layout/paint
+                    content-visibility: auto; // Optimization: skip offscreen work
+                    background-image: none;
+                }
+            }
+        }
+
+        //
+        & slot {
+            isolation: auto !important;
+            display: contents !important;
+            overflow: visible !important;
+            contain: none !important;
+        }
+
+        //
+        ::slotted(*) {
+            direction: inherit;
+            writing-mode: inherit;
+        }
+    }
+}
+

@@ -1,0 +1,464 @@
+@use "../misc/functions" as lg;
+@use "sass:list";
+@use "sass:string";
+@use "sass:meta";
+
+//
+// 2D shorthand helpers
+@function v2-suffix($suffix) {
+    @if $suffix == null or $suffix == "" { @return ""; }
+
+    $value: #{$suffix};
+    @if string.slice($value, 1, 1) == "-" {
+        @return string.unquote($value);
+    }
+
+    @return string.unquote("-#{$value}");
+}
+
+@mixin v2-pair($token, $first-value, $second-value, $axes: ("x", "y")) {
+    $first-suffix: v2-suffix(list.nth($axes, 1));
+    $second-suffix: v2-suffix(list.nth($axes, 2));
+
+    --#{$token}#{$first-suffix}: #{$first-value};
+    --#{$token}#{$second-suffix}: #{$second-value};
+}
+
+@function v2-size($axis, $primary, $secondary, $orient: var(--orient, 0)) {
+    @return string.unquote("--get-oriented-size(#{$orient}, #{$primary}, #{$secondary}, #{$axis})");
+}
+
+@function v2-size-num($axis, $primary, $secondary, $orient: var(--orient, 0)) {
+    @return string.unquote("--get-oriented-size-num(#{$orient}, #{$primary}, #{$secondary}, #{$axis})");
+}
+
+@function v2-coord($axis, $first, $second, $size-x, $size-y, $orient: var(--orient, 0)) {
+    @return string.unquote("--get-oriented-coordinate(#{$orient}, #{$first}, #{$second}, #{$size-x}, #{$size-y}, #{$axis})");
+}
+
+@function v2-coord-num($axis, $first, $second, $max-x, $max-y, $orient: var(--orient, 0)) {
+    @return string.unquote("--get-oriented-coord-num(#{$orient}, #{$first}, #{$second}, #{$max-x}, #{$max-y}, #{$axis})");
+}
+
+@function v2-vec($axis, $first, $second, $orient: var(--orient, 0)) {
+    @return string.unquote("--get-oriented-vector(#{$orient}, #{$first}, #{$second}, #{$axis})");
+}
+
+@function v2-pick($value, $index, $fallback: null) {
+    @if meta.type-of($value) != "list" {
+        @return if(
+            sass($index == 1): $value; 
+            else: $fallback;
+        );
+    }
+
+    @if list.length($value) < $index {
+        @return $fallback;
+    }
+
+    @return list.nth($value, $index);
+}
+
+@mixin v2-size-pair($token, $axis-0, $axis-1: $axis-0, $axes: ("x", "y"), $orient: var(--orient, 0)) {
+    $a0-primary: v2-pick($axis-0, 1);
+    $a0-secondary: v2-pick($axis-0, 2);
+    $a1-primary: v2-pick($axis-1, 1, $a0-primary);
+    $a1-secondary: v2-pick($axis-1, 2, $a0-secondary);
+
+    @include v2-pair(
+        $token,
+        v2-size(0, $a0-primary, $a0-secondary, $orient),
+        v2-size(1, $a1-primary, $a1-secondary, $orient),
+        $axes
+    );
+}
+
+@mixin v2-size-num-pair($token, $axis-0, $axis-1: $axis-0, $axes: ("x", "y"), $orient: var(--orient, 0)) {
+    $a0-primary: v2-pick($axis-0, 1);
+    $a0-secondary: v2-pick($axis-0, 2);
+    $a1-primary: v2-pick($axis-1, 1, $a0-primary);
+    $a1-secondary: v2-pick($axis-1, 2, $a0-secondary);
+
+    @include v2-pair(
+        $token,
+        v2-size-num(0, $a0-primary, $a0-secondary, $orient),
+        v2-size-num(1, $a1-primary, $a1-secondary, $orient),
+        $axes
+    );
+}
+
+@mixin v2-coord-pair($token, $axis-0, $axis-1: $axis-0, $axes: ("x", "y"), $orient: var(--orient, 0)) {
+    $a0-first: v2-pick($axis-0, 1);
+    $a0-second: v2-pick($axis-0, 2);
+    $a0-size-x: v2-pick($axis-0, 3);
+    $a0-size-y: v2-pick($axis-0, 4);
+
+    $a1-first: v2-pick($axis-1, 1, $a0-first);
+    $a1-second: v2-pick($axis-1, 2, $a0-second);
+    $a1-size-x: v2-pick($axis-1, 3, $a0-size-x);
+    $a1-size-y: v2-pick($axis-1, 4, $a0-size-y);
+
+    @include v2-pair(
+        $token,
+        v2-coord(0, $a0-first, $a0-second, $a0-size-x, $a0-size-y, $orient),
+        v2-coord(1, $a1-first, $a1-second, $a1-size-x, $a1-size-y, $orient),
+        $axes
+    );
+}
+
+@mixin v2-coord-num-pair($token, $axis-0, $axis-1: $axis-0, $axes: ("x", "y"), $orient: var(--orient, 0)) {
+    $a0-first: v2-pick($axis-0, 1);
+    $a0-second: v2-pick($axis-0, 2);
+    $a0-max-x: v2-pick($axis-0, 3);
+    $a0-max-y: v2-pick($axis-0, 4);
+
+    $a1-first: v2-pick($axis-1, 1, $a0-first);
+    $a1-second: v2-pick($axis-1, 2, $a0-second);
+    $a1-max-x: v2-pick($axis-1, 3, $a0-max-x);
+    $a1-max-y: v2-pick($axis-1, 4, $a0-max-y);
+
+    @include v2-pair(
+        $token,
+        v2-coord-num(0, $a0-first, $a0-second, $a0-max-x, $a0-max-y, $orient),
+        v2-coord-num(1, $a1-first, $a1-second, $a1-max-x, $a1-max-y, $orient),
+        $axes
+    );
+}
+
+@mixin v2-vec-pair($token, $axis-0, $axis-1: $axis-0, $axes: ("x", "y"), $orient: var(--orient, 0)) {
+    $a0-first: v2-pick($axis-0, 1);
+    $a0-second: v2-pick($axis-0, 2);
+    $a1-first: v2-pick($axis-1, 1, $a0-first);
+    $a1-second: v2-pick($axis-1, 2, $a0-second);
+
+    @include v2-pair(
+        $token,
+        v2-vec(0, $a0-first, $a0-second, $orient),
+        v2-vec(1, $a1-first, $a1-second, $orient),
+        $axes
+    );
+}
+
+@mixin oriented($property, $portrait, $landscape) {
+    & { #{$property}: #{$portrait}; }
+    @media (orientation: portrait) { #{$property}: #{$portrait}; }
+    @media (orientation: landscape) { #{$property}: #{$landscape}; }
+}
+
+
+//
+@function inverse-orient($orient) {
+    @return mod(calc(4 - $orient), 4);
+}
+
+
+//
+@mixin compute_os_conditions {
+    & {
+        --in-orient-base: round(nearest, var(--orient, 0), 1);
+        --in-rev-cond-x: clamp(0, calc(var(--in-orient-base, 0) - 1), 1);
+        --in-rev-cond-y: clamp(0, calc((1 - abs(calc(var(--in-orient-base, 0) - 1.5))) * 2), 1);
+        --in-swap-cond: #{css-rem(var(--orient, 0), 2)};
+        --in-rev-vx: calc(var(--in-rev-cond-x, 1) * -2 + 1);
+        --in-rev-vy: calc(var(--in-rev-cond-y, 1) * -2 + 1);
+    }
+}
+
+
+
+@mixin compute_cs_size_to_os {
+    $orient: #{inverse-orient(var(--orient, 0))};
+
+    & {
+        @include v2-size-pair(
+            "os-size",
+            (var(--cs-size-x, 100cqi), var(--cs-size-y, 100cqb)),
+            (var(--cs-size-x, 100cqb), var(--cs-size-y, 100cqi)),
+            $orient: $orient
+        );
+
+        @include v2-size-pair(
+            "os-self-size",
+            (var(--cs-self-size-x, 100%), var(--cs-self-size-y, 100%)),
+            $orient: $orient
+        );
+    }
+}
+
+@mixin compute_from_cs_to_os {
+    $orient: #{inverse-orient(var(--orient, 0))};
+
+    & {
+        @include v2-coord-pair(
+            "os-inset",
+            (var(--cs-inset-x, 0px), var(--cs-inset-y, 0px), var(--cs-size-x, 100cqi), var(--cs-size-y, 100cqb)),
+            $orient: $orient
+        );
+
+        @include v2-vec-pair(
+            "os-drag",
+            (var(--cs-drag-x, 0px), var(--cs-drag-y, 0px)),
+            $orient: $orient
+        );
+    }
+}
+
+
+
+@mixin compute_os_size_to_cs {
+    $orient: var(--orient, 0);
+
+    & {
+        @include v2-size-pair(
+            "cs-size",
+            (var(--os-size-x, 100cqb), var(--os-size-y, 100cqi)),
+            (var(--os-size-x, 100cqi), var(--os-size-y, 100cqb)),
+            $orient: $orient
+        );
+
+        @include v2-size-pair(
+            "cs-self-size",
+            (var(--os-self-size-x, 100%), var(--os-self-size-y, 100%)),
+            $orient: $orient
+        );
+    }
+}
+
+@mixin compute_from_os_to_cs {
+    $orient: var(--orient, 0);
+
+    & {
+        @include v2-coord-pair(
+            "cs-inset",
+            (var(--os-inset-x, 0px), var(--os-inset-y, 0px), var(--os-size-x, 100cqi), var(--os-size-y, 100cqb)),
+            $orient: $orient
+        );
+
+        @include v2-vec-pair(
+            "cs-drag",
+            (var(--os-drag-x, 0px), var(--os-drag-y, 0px)),
+            $orient: $orient
+        );
+    }
+}
+
+
+@mixin portrait-size {
+    --cqi: 100cqmin;
+    --cqb: 100cqmax;
+}
+
+@mixin landscape-size {
+    --cqi: 100cqmax;
+    --cqb: 100cqmin;
+}
+
+@mixin init-os-size-by-native {
+    @include v2-pair("os-size", var(--cqi, 100cqi), var(--cqb, 100cqb));
+}
+
+@mixin init-cs-size {
+    @include v2-pair("cs-size", 100cqi, 100cqb);
+}
+
+@mixin centered-self($transforms: null) {
+    transform-origin: 0% 0%;
+    transform:
+        #{$transforms}
+        scale3d(var(--scale, 1), var(--scale, 1), var(--scale, 1))
+        #{perfect-translate(calc(var(--translate-x, 0px) - 50%), calc(var(--translate-y, 0px) - 50%))};
+    place-self: center;
+}
+
+@mixin centered-with-offset {
+    $translate: #{perfect-translate(var(--cs-drag-x, 0px), var(--cs-drag-y, 0px))};
+    @include centered-self($translate);
+}
+
+@mixin use-inset {
+    inset: var(--cs-inset-y, 0px) auto auto var(--cs-inset-x, 0px);
+}
+
+//
+@mixin use_dvp {
+    & { --avi: 100dvmin; --avb: 100dvmax; };
+    & {
+        --vp-i-size: var(--avi, 100dvmin);
+        --vp-b-size: var(--avb, 100dvmax);
+    }
+}
+
+//
+@mixin use_lvp {
+    & { --avi: 100lvmin; --avb: 100lvmax; };
+    & {
+        --vp-i-size: var(--avi, 100lvmin);
+        --vp-b-size: var(--avb, 100lvmax);
+    }
+}
+
+
+//
+@mixin when-fullscreen($selector: &) {
+    @media (display-mode: fullscreen) { @content; }
+    @at-root :fullscreen #{$selector} { @content; }
+}
+
+//
+@mixin vp-vars {
+    @include use_dvp();
+    @include when-fullscreen() {
+        @include use_lvp();
+        & {
+            --vp-i-size: min(var(--avail-width, 100dvmin), 100dvmin);
+            --vp-b-size: min(var(--avail-height, 100dvmax), 100dvmax);
+        }
+    }
+};
+
+//
+@mixin fit-viewport {
+    @include vp-vars;
+    & {
+        @include oriented(inline-size, var(--vp-i-size, 100lvi), var(--vp-b-size, 100lvb));
+        @include oriented(block-size, var(--vp-b-size, 100lvb), var(--vp-i-size, 100lvi));
+        @include oriented(max-inline-size, var(--vp-i-size, 100lvi), var(--vp-b-size, 100lvb));
+        @include oriented(max-block-size, var(--vp-b-size, 100lvb), var(--vp-i-size, 100lvi));
+    }
+};
+
+//
+@function perfect-translate($x: 0px, $y: 0px) {
+    @return translate3d(round(nearest, #{$x}, calc(1px / var(--pixel-ratio, 1))), round(nearest, #{$y}, calc(1px / var(--pixel-ratio, 1))), 0);
+}
+
+//
+@mixin compute_grid_item_cell() {
+    // hack: use translate diff shifting for correct animation for CSS Grid Layout
+    & { // currently, I have no viable solution for correct animation for CSS Grid Layout
+        @include v2-pair(
+            "cs-sw-unit",
+            calc(var(--cs-size-x, 100cqi) / var(--cs-layout-c, 1)),
+            calc(var(--cs-size-y, 100cqb) / var(--cs-layout-r, 1))
+        );
+    }
+
+    & {
+        @include v2-pair(
+            "cs-transition",
+            0px,
+            0px,
+            ("c", "r")
+        );
+    }
+
+    &[data-dragging] {
+        //
+        @include v2-pair(
+            "cs-transition",
+            calc((var(--rv-grid-c, 0) - var(--cs-grid-c, 0)) * var(--cs-sw-unit-x, 1px)),
+            calc((var(--rv-grid-r, 0) - var(--cs-grid-r, 0)) * var(--cs-sw-unit-y, 1px)),
+            ("c", "r")
+        );
+    }
+
+    & {
+        @include v2-pair("p-cell", var(--cell-x), var(--cell-y));
+
+        // CLAMPED GRID
+        --f-col: clamp(1, var(--layout-c, 4), 16);
+        --f-row: clamp(1, var(--layout-r, 8), 16);
+
+        //
+        @include v2-pair(
+            "grid",
+            clamp(0, var(--cell-x), calc(var(--f-col) - 1)),
+            clamp(0, var(--cell-y), calc(var(--f-row) - 1)),
+            ("c", "r")
+        );
+
+        //
+        @include v2-pair(
+            "p-grid",
+            clamp(0, var(--p-cell-x), calc(var(--f-col) - 1)),
+            clamp(0, var(--p-cell-y), calc(var(--f-row) - 1)),
+            ("c", "r")
+        );
+
+        //
+        @include v2-pair(
+            "fc-cell",
+            clamp(0, var(--cs-grid-c, 0), calc(var(--f-col) - 1)),
+            clamp(0, var(--cs-grid-r, 0), calc(var(--f-row) - 1))
+        );
+
+        //
+        @include v2-pair(
+            "fp-cell",
+            clamp(0, var(--cs-p-grid-c, 0), calc(var(--f-col) - 1)),
+            clamp(0, var(--cs-p-grid-r, 0), calc(var(--f-row) - 1))
+        );
+
+        //
+        @include v2-pair(
+            "dir",
+            calc(var(--cs-grid-c, 0) - var(--cs-p-grid-c, 0)),
+            calc(var(--cs-grid-r, 0) - var(--cs-p-grid-r, 0))
+        );
+    }
+
+    //
+    & { @include v2-pair("rv-grid", var(--cs-grid-c, 1), var(--cs-grid-r, 1), ("c", "r")); }
+    &[data-dragging] { @include v2-pair("rv-grid", var(--cs-p-grid-c, 1), var(--cs-p-grid-r, 1), ("c", "r")); }
+
+    //
+    & {
+        @include v2-pair("os-grid", var(--grid-c, 1), var(--grid-r, 1), ("c", "r"));
+        @include v2-coord-num-pair(
+            "cs-grid",
+            (var(--os-grid-c, 1), var(--os-grid-r, 1), calc(var(--f-col, 1) - 1), calc(var(--f-row, 1) - 1)),
+            $axes: ("c", "r")
+        );
+    }
+
+    //
+    & {
+        @include v2-pair("os-p-grid", var(--p-cell-x, 0), var(--p-cell-y, 0), ("c", "r"));
+        @include v2-coord-num-pair(
+            "cs-p-grid",
+            (var(--os-p-grid-c, 0), var(--os-p-grid-r, 0), calc(var(--f-col, 1) - 1), calc(var(--f-row, 1) - 1)),
+            $axes: ("c", "r")
+        );
+    }
+
+    & {
+        @include v2-pair(
+            "ox",
+            calc(var(--os-size-x, 100cqi) / var(--os-layout-c, 1)),
+            calc(var(--os-size-y, 100cqb) / var(--os-layout-r, 1)),
+            ("c-unit", "r-unit")
+        );
+
+        //
+        @include v2-pair(
+            "os-inset",
+            calc((var(--grid-c, 1) + 0.5) * var(--ox-c-unit, 1px)),
+            calc((var(--grid-r, 1) + 0.5) * var(--ox-r-unit, 1px))
+        );
+    }
+}
+
+//
+@mixin compute_orient_grid_layout() {
+    & {
+        @include v2-pair("os-layout", var(--layout-c, 4), var(--layout-r, 8), ("c", "r"));
+        @include v2-size-num-pair(
+            "cs-layout",
+            (var(--os-layout-c, 4), var(--os-layout-r, 8)),
+            $axes: ("c", "r")
+        );
+    }
+}
+
+// :root `--vv-width`, `--vv-height`, `--vv-offset-left`, `--vv-offset-top`, `--vv-scale`
+// are set by fest/dom `getAvailSize()` / `updateVP()` (see `whenAnyScreenChanges`).

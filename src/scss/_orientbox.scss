@@ -1,0 +1,92 @@
+@use "../../../lib/core/orient/viewport" as *;
+
+//
+@layer ux-orientbox {
+
+    //
+    .ui-orientbox {
+        @include init-cs-size;
+        @include compute_os_conditions;
+        @include compute_cs_size_to_os;
+        @include compute_from_os_to_cs;
+
+        //
+        & {
+            --cs-size-x: 100cqi;
+            --cs-size-y: 100cqb;
+
+            //
+            position: relative;
+            container-type: size !important;
+            contain: strict !important;
+            background-color: transparent;
+            inset: 0px;
+
+            //
+            grid-column: 1 / -1;
+            grid-row: 1 / -1;
+            place-self: start;
+
+            //
+            min-inline-size: 0px;
+            min-block-size: 0px;
+            inline-size: stretch;
+            block-size: stretch;
+            pointer-events: none;
+
+            //
+            zoom: max(var(--zoom, 1), 0.125);
+            font-size: 16px;
+
+            //
+            writing-mode: horizontal-tb !important;
+            direction: ltr !important;
+
+            //
+            // Cap by dynamic viewport and by JS visual viewport (--vv-* from fest/dom updateVP) for mobile browser chrome / keyboard.
+            max-inline-size: min(100%, min(100cqi, 100dvi), var(--vv-width, 100dvi)) !important;
+            max-block-size: min(100%, min(100cqb, 100dvb), var(--vv-height, 100dvb)) !important;
+
+            //
+            /*outline-color: oklch(from var(--on-surface-color) l c h / 0.1);
+            outline-width: 1px;
+            outline-style: solid;
+            outline-offset: -1px;*/
+
+            //
+            border-radius: var(--radius-lg);
+        }
+
+        //
+        & {
+            //
+            --zoom: max(var(--scaling, 1), 0.125);
+            --zpx: calc(1px / max(var(--zoom, 1), 0.125));
+            --ppx: calc(1px / max(var(--pixel-ratio, 1), 0.125));
+        }
+
+        //
+        & > :where(*),
+        & :where(ui-frame, .u2-grid-item, ui-modal, [is="ui-orientbox"], [is="ui-gridbox"], [is="ui-orientbox"] > :where(*), [is="ui-gridbox"] > :where(*), .ui-gridlayout, .ui-gridlayout > :where(*))
+        {
+            @include compute_os_conditions;
+            @include compute_cs_size_to_os;
+            @include compute_from_os_to_cs;
+        }
+
+        //
+        .center-self {
+            @include use-inset;
+            @include centered-with-offset();
+        }
+
+        //
+        .fixed { @include use-inset; position: fixed !important; }
+        .absolute { @include use-inset; position: absolute !important; }
+    }
+
+    //
+    .native-portrait-optimized {
+        @include oriented(--in-swap-cond, 0, 1);
+    };
+}

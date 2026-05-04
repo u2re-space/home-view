@@ -1,0 +1,273 @@
+@use "sass:string";
+@use "../../../lib/core/misc/functions" as func;
+
+//
+@function css-rem($value, $mod) {
+    @return string.unquote("rem(#{$value}, #{$mod})");
+}
+
+//
+@function css-mod($value, $mod) {
+    @return string.unquote("mod(#{$value}, #{$mod})");
+}
+
+
+
+//
+@include func.make-func("@function --get-oriented-size-num(\
+--orient <number>: 0, \
+--osx <number>: 0, \
+--osy <number>: 0, \
+--axis-to-return <number>: 0 \
+) returns <number>") {
+    --go-orient: round(nearest, var(--orient, 0), 1);
+    --go-axis: clamp(0, round(nearest, var(--axis-to-return, 0), 1), 1);
+    --go-axis-inline: calc(1 - var(--go-axis, 0));
+    --go-axis-block: var(--go-axis, 0);
+
+    --go-swap-raw: #{css-mod(var(--go-orient), 2)};
+    --go-swap: clamp(0, round(nearest, var(--go-swap-raw), 1), 1);
+    --go-swap-inline: calc(1 - var(--go-swap, 0));
+
+    --go-primary: var(--osx, 0);
+    --go-secondary: var(--osy, 0);
+
+    --go-inline: calc(
+        var(--go-primary) * var(--go-swap-inline) +
+        var(--go-secondary) * var(--go-swap)
+    );
+    --go-block: calc(
+        var(--go-secondary) * var(--go-swap-inline) +
+        var(--go-primary) * var(--go-swap)
+    );
+
+    result: calc(
+        var(--go-inline) * var(--go-axis-inline) +
+        var(--go-block) * var(--go-axis-block)
+    );
+}
+
+
+
+//
+@include func.make-func("@function --get-oriented-size(\
+--orient <number>: 0, \
+--osx <length-percentage>: 0px, \
+--osy <length-percentage>: 0px, \
+--axis-to-return <number>: 0 \
+) returns <length-percentage>") {
+    --go-orient: mod(round(nearest, var(--orient, 0), 1), 4);
+    --go-axis: clamp(0, round(nearest, var(--axis-to-return, 0), 1), 1);
+    --go-axis-inline: calc(1 - var(--go-axis, 0));
+    --go-axis-block: var(--go-axis, 0);
+
+    --go-swap-raw: #{css-mod(var(--go-orient, 0), 2)};
+    --go-swap: clamp(0, round(nearest, var(--go-swap-raw, 0), 1), 1);
+    --go-swap-inline: calc(1 - var(--go-swap, 0));
+
+    --go-primary: var(--osx, 0px);
+    --go-secondary: var(--osy, 0px);
+
+    --go-inline: calc(var(--go-primary) * var(--go-swap-inline) + var(--go-secondary) * var(--go-swap));
+    --go-block: calc(var(--go-secondary) * var(--go-swap-inline) + var(--go-primary) * var(--go-swap));
+
+    result: calc(
+        var(--go-inline) * var(--go-axis-inline) +
+        var(--go-block) * var(--go-axis-block)
+    );
+}
+
+
+
+//
+@include func.make-func("@function --get-oriented-vector(\
+--orient <number>: 0, \
+--ocx <length-percentage>: 0px, \
+--ocy <length-percentage>: 0px, \
+--axis-to-return <number>: 0 \
+) returns <length-percentage>") {
+    --go-orient: mod(round(nearest, var(--orient, 0), 1), 4);
+    --go-axis: clamp(0, round(nearest, var(--axis-to-return, 0), 1), 1);
+    --go-axis-inline: calc(1 - var(--go-axis, 0));
+    --go-axis-block: var(--go-axis, 0);
+
+    --go-swap-raw: #{css-mod(var(--go-orient, 0), 2)};
+    --go-swap: clamp(0, round(nearest, var(--go-swap-raw, 0), 1), 1);
+    --go-swap-inline: calc(1 - var(--go-swap, 0));
+
+    --go-primary-direct: var(--ocx, 0px);
+    --go-secondary-direct: var(--ocy, 0px);
+
+    --go-inline-direct: calc(
+        var(--go-primary-direct) * var(--go-swap-inline) +
+        var(--go-secondary-direct) * var(--go-swap)
+    );
+    --go-block-direct: calc(
+        var(--go-secondary-direct) * var(--go-swap-inline) +
+        var(--go-primary-direct) * var(--go-swap)
+    );
+
+    //
+    --go-inline-inverted: calc(0px - var(--go-inline-direct));
+    --go-block-inverted: calc(0px - var(--go-block-direct));
+    --go-rev-inline: clamp(0, calc(var(--go-orient) - 1), 1);
+
+    //
+    --go-rev-block: clamp(0, calc((1 - abs(calc(var(--go-orient) - 1.5))) * 2), 1);
+    --go-inline: calc(var(--go-inline-direct) * (1 - var(--go-rev-inline)) + var(--go-inline-inverted) * var(--go-rev-inline));
+    --go-block: calc(var(--go-block-direct) * (1 - var(--go-rev-block)) + var(--go-block-inverted) * var(--go-rev-block));
+
+    //
+    result: calc(
+        var(--go-inline) * var(--go-axis-inline) +
+        var(--go-block) * var(--go-axis-block)
+    );
+}
+
+
+
+//
+@include func.make-func("@function --get-oriented-coord-num(\
+--orient <number>: 0, \
+--ocx <number>: 0, \
+--ocy <number>: 0, \
+--osx <number>: 0, \
+--osy <number>: 0, \
+--axis-to-return <number>: 0 \
+) returns <number>") {
+    --go-orient: mod(round(nearest, var(--orient, 0), 1), 4);
+    --go-axis: clamp(0, round(nearest, var(--axis-to-return, 0), 1), 1);
+    --go-axis-inline: calc(1 - var(--go-axis, 0));
+    --go-axis-block: var(--go-axis, 0);
+
+    --go-swap-raw: #{css-mod(var(--go-orient, 0), 2)};
+    --go-swap: clamp(0, round(nearest, var(--go-swap-raw, 0), 1), 1);
+    --go-swap-inline: calc(1 - var(--go-swap, 0));
+
+    --go-primary-direct: var(--ocx, 0);
+    --go-secondary-direct: var(--ocy, 0);
+    --go-primary-size: var(--osx, 0);
+    --go-secondary-size: var(--osy, 0);
+
+    --go-inline-direct: calc(
+        var(--go-primary-direct) * var(--go-swap-inline) +
+        var(--go-secondary-direct) * var(--go-swap)
+    );
+    --go-block-direct: calc(
+        var(--go-secondary-direct) * var(--go-swap-inline) +
+        var(--go-primary-direct) * var(--go-swap)
+    );
+
+    --go-inline-size: calc(
+        var(--go-primary-size) * var(--go-swap-inline) +
+        var(--go-secondary-size) * var(--go-swap)
+    );
+    --go-block-size: calc(
+        var(--go-secondary-size) * var(--go-swap-inline) +
+        var(--go-primary-size) * var(--go-swap)
+    );
+
+    --go-inline-inverted: calc(
+        var(--go-inline-size, calc(var(--go-inline-direct) + var(--go-inline-direct))) -
+        var(--go-inline-direct)
+    );
+    --go-block-inverted: calc(
+        var(--go-block-size, calc(var(--go-block-direct) + var(--go-block-direct))) -
+        var(--go-block-direct)
+    );
+
+    --go-rev-inline: clamp(0, calc(var(--go-orient) - 1), 1);
+    --go-rev-block: clamp(
+        0,
+        calc((1 - abs(calc(var(--go-orient) - 1.5))) * 2),
+        1
+    );
+
+    --go-inline: calc(
+        var(--go-inline-direct) * (1 - var(--go-rev-inline)) +
+        var(--go-inline-inverted) * var(--go-rev-inline)
+    );
+    --go-block: calc(
+        var(--go-block-direct) * (1 - var(--go-rev-block)) +
+        var(--go-block-inverted) * var(--go-rev-block)
+    );
+
+    result: calc(
+        var(--go-inline) * var(--go-axis-inline) +
+        var(--go-block) * var(--go-axis-block)
+    );
+}
+
+
+
+//
+@include func.make-func("@function --get-oriented-coordinate(\
+--orient <number>: 0, \
+--ocx <length-percentage>: 0px, \
+--ocy <length-percentage>: 0px, \
+--osx <length-percentage>: 0px, \
+--osy <length-percentage>: 0px, \
+--axis-to-return <number>: 0 \
+) returns <length-percentage>") {
+    --go-orient: mod(round(nearest, var(--orient, 0), 1), 4);
+    --go-axis: clamp(0, round(nearest, var(--axis-to-return, 0), 1), 1);
+    --go-axis-inline: calc(1 - var(--go-axis, 0));
+    --go-axis-block: var(--go-axis, 0);
+
+    --go-swap-raw: #{css-mod(var(--go-orient, 0), 2)};
+    --go-swap: clamp(0, round(nearest, var(--go-swap-raw, 0), 1), 1);
+    --go-swap-inline: calc(1 - var(--go-swap, 0));
+
+    --go-primary-direct: var(--ocx, 0px);
+    --go-secondary-direct: var(--ocy, 0px);
+    --go-primary-size: var(--osx, 0px);
+    --go-secondary-size: var(--osy, 0px);
+
+    --go-inline-direct: calc(
+        var(--go-primary-direct) * var(--go-swap-inline) +
+        var(--go-secondary-direct) * var(--go-swap)
+    );
+    --go-block-direct: calc(
+        var(--go-secondary-direct) * var(--go-swap-inline) +
+        var(--go-primary-direct) * var(--go-swap)
+    );
+
+    --go-inline-size: calc(
+        var(--go-primary-size) * var(--go-swap-inline) +
+        var(--go-secondary-size) * var(--go-swap)
+    );
+    --go-block-size: calc(
+        var(--go-secondary-size) * var(--go-swap-inline) +
+        var(--go-primary-size) * var(--go-swap)
+    );
+
+    --go-inline-inverted: calc(
+        var(--go-inline-size, calc(var(--go-inline-direct) + var(--go-inline-direct))) -
+        var(--go-inline-direct)
+    );
+    --go-block-inverted: calc(
+        var(--go-block-size, calc(var(--go-block-direct) + var(--go-block-direct))) -
+        var(--go-block-direct)
+    );
+
+    --go-rev-inline: clamp(0, calc(var(--go-orient) - 1), 1);
+    --go-rev-block: clamp(
+        0,
+        calc((1 - abs(calc(var(--go-orient) - 1.5))) * 2),
+        1
+    );
+
+    --go-inline: calc(
+        var(--go-inline-direct) * (1 - var(--go-rev-inline)) +
+        var(--go-inline-inverted) * var(--go-rev-inline)
+    );
+    --go-block: calc(
+        var(--go-block-direct) * (1 - var(--go-rev-block)) +
+        var(--go-block-inverted) * var(--go-rev-block)
+    );
+
+    result: calc(
+        var(--go-inline) * var(--go-axis-inline) +
+        var(--go-block) * var(--go-axis-block)
+    );
+}

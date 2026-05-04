@@ -1,0 +1,40 @@
+@use "../../../lib/core/orient/viewport" as *;
+
+//
+// Desktop-like launcher / speed-dial grids (orient-aware drag + placement).
+// Use with:
+// - Host: `data-mixin="ui-orientbox"` ancestor, `data-grid-columns` / `data-grid-rows`
+// - Items: `compute_grid_item_cell` (see `.ui-gridlayout` or include mixin on children)
+// - JS: `fest/dom` `resolveGridCellFromClientPoint`, `fest/lure` `bindDraggable`, `fest/core` `normalizeGridLayout` / `redirectCell`
+//
+@layer ux-launcher-grid {
+    .ui-launcher-grid, .ui-speed-dial-grid {
+        @include compute_orient_grid_layout();
+
+        display: grid;
+        position: relative;
+        container-type: size;
+        box-sizing: border-box;
+        inline-size: stretch;
+        block-size: stretch;
+        min-inline-size: 0px;
+        min-block-size: 0px;
+        pointer-events: none;
+        gap: 0;
+        place-content: center;
+        place-items: center;
+
+        // Override `--layout-c` / `--layout-r` (or set `--grid-cols` / `--grid-rows` in a parent theme) to match `data-grid-*` + app state.
+        --layout-c: 4;
+        --layout-r: 8;
+
+        grid-template-columns: repeat(var(--cs-layout-c, 4), minmax(0px, 1fr));
+        grid-template-rows: repeat(var(--cs-layout-r, 8), minmax(0px, 1fr));
+
+        //
+        & > :where(.ui-ws-item, [data-launcher-item]) {
+            @include compute_grid_item_cell();
+            pointer-events: auto;
+        }
+    }
+}

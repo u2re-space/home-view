@@ -1,0 +1,702 @@
+// Orientbox + launcher grid: swaps logical 4×8 into 8×4 on landscape (orient 1/3) via `--cs-layout-*`.
+@use "veela-lib" as *;
+
+@layer views {
+
+    ui-window-frame,
+    ui-modal,
+    .ui-grid-item {
+        --opacity: 1;
+        --scale: 1;
+        --rotate: 0deg;
+        --translate-x: 0%;
+        --translate-y: 0%;
+        isolation: isolate;
+        content-visibility: auto;
+        transform-origin: 50% 50%;
+        transform-style: flat;
+        transform-box: fill-box;
+        translate: 0% 0% 0%;
+        opacity: var(--opacity, 1);
+        rotate: 0deg;
+        scale: 1;
+    }
+
+    // Speed Dial (Home) Styles
+    .speed-dial-root {
+        display: grid;
+        grid-row: 1 / -1;
+        grid-column: 1 / -1;
+        grid-template-columns: minmax(0px, 1fr);
+        grid-template-rows: minmax(0px, 1fr);
+        pointer-events: auto;
+        min-inline-size: 0px;
+        min-block-size: 0px;
+        max-inline-size: 100%;
+        max-block-size: 100%;
+        inline-size: 100%;
+        block-size: 100%;
+        box-sizing: border-box;
+        inset: 0;
+        position: absolute;
+        background-color: transparent;
+        overflow: hidden;
+        border-radius: 0px;
+
+        & > * {
+            grid-row: 1 / -1;
+            grid-column: 1 / -1;
+        }
+    }
+
+    /* WHY: veela `.ui-orientbox` uses `pointer-events: none` for touch routing; desktop needs full-area context menu / paste. */
+    .speed-dial-root.app-oriented-desktop.ui-orientbox {
+        pointer-events: auto;
+    }
+
+    .speed-dial-grid {
+        --grid-cols: 4;
+        --grid-rows: 8;
+
+        grid-row: 1 / -1;
+        grid-column: 1 / -1;
+        padding: var(--padding-lg);
+
+        &[data-grid-columns="4"] { --grid-cols: 4; }
+        &[data-grid-columns="5"] { --grid-cols: 5; }
+        &[data-grid-columns="6"] { --grid-cols: 6; }
+        &[data-grid-columns="7"] { --grid-cols: 7; }
+        &[data-grid-columns="8"] { --grid-cols: 8; }
+
+        &[data-grid-rows="6"] { --grid-rows: 6; }
+        &[data-grid-rows="7"] { --grid-rows: 7; }
+        &[data-grid-rows="8"] { --grid-rows: 8; }
+        &[data-grid-rows="9"] { --grid-rows: 9; }
+        &[data-grid-rows="10"] { --grid-rows: 10; }
+        &[data-grid-rows="11"] { --grid-rows: 11; }
+        &[data-grid-rows="12"] { --grid-rows: 12; }
+
+        --layout-c: var(--grid-cols, 4);
+        --layout-r: var(--grid-rows, 8);
+
+        border-radius: 0px;
+
+        // Stack order: labels on top so overflowing text below icon tiles is visible.
+        // Labels layer is pointer-events: none so it never blocks interaction.
+        &[data-grid-layer="icons"] {
+            z-index: 1;
+            background: transparent !important;
+            pointer-events: none;
+            isolation: isolate;
+            contain: layout style;
+
+            &:has([data-dragging]) {
+                z-index: 3;
+            }
+        }
+
+        &[data-grid-layer="labels"] {
+            z-index: 2;
+            background: transparent !important;
+            pointer-events: none !important;
+            isolation: isolate;
+            contain: layout style;
+        }
+
+        .ui-ws-item {
+            --drag-x: 0;
+            --drag-y: 0;
+            --cs-drag-x: calc(var(--drag-x, 0) * 1px);
+            --cs-drag-y: calc(var(--drag-y, 0) * 1px);
+            --tile-size: clamp(3.2rem, 7.5vmin, 4.6rem);
+
+            grid-column: clamp(1, calc(1 + round(nearest, var(--cs-grid-c, 0), 1)), var(--cs-layout-c, 4));
+            grid-row: clamp(1, calc(1 + round(nearest, var(--cs-grid-r, 0), 1)), var(--cs-layout-r, 8));
+
+            position: relative;
+            display: grid;
+            place-content: center;
+            place-items: center;
+            place-self: center;
+            aspect-ratio: 1 / 1;
+            min-inline-size: var(--tile-size);
+            min-block-size: var(--tile-size);
+            grid-template-columns: minmax(0px, 1fr);
+            grid-template-rows: minmax(0px, 1fr);
+
+            background-color: transparent;
+            pointer-events: auto;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            contain: none;
+            overflow: visible;
+            z-index: 1;
+            filter: none;
+
+            transform:
+                translate3d(
+                    calc(var(--cs-drag-x, 0px) + var(--cs-transition-c, 0px)),
+                    calc(var(--cs-drag-y, 0px) + var(--cs-transition-r, 0px)),
+                    0px
+                );
+            transform-origin: 50% 50%;
+
+            transition:
+                transform var(--drag-settle-ms, 200ms) cubic-bezier(0.22, 0.8, 0.3, 1),
+                scale 180ms var(--ease-out, ease-out),
+                filter 180ms var(--ease-out, ease-out);
+
+            &:hover {
+                scale: 1.06;
+
+                .ui-ws-item-icon {
+                    background: color-mix(in oklab, var(--color-surface-container-high, #1f2937) 60%, transparent);
+                    box-shadow: 0 10px 36px -10px color-mix(in oklab, #000 40%, transparent);
+                }
+            }
+
+            &:active {
+                scale: 0.94;
+            }
+
+            .ui-ws-item-icon {
+                display: grid;
+                transition: background-color 200ms ease, box-shadow 200ms ease;
+                grid-column: 1 / -1;
+                grid-row: 1 / -1;
+                aspect-ratio: 1 / 1;
+
+                pointer-events: auto;
+                position: relative;
+                text-align: center;
+                place-content: center;
+                place-items: center;
+                line-height: 0;
+                overflow: hidden;
+                contain: layout style;
+                cursor: pointer;
+
+                inline-size: var(--tile-size);
+                block-size: var(--tile-size);
+                min-inline-size: fit-content;
+                min-block-size: fit-content;
+                max-inline-size: 100%;
+                max-block-size: 100%;
+                padding: 0.8rem;
+
+                background: color-mix(in oklab, var(--color-surface-container, #111827) 56%, transparent);
+                border: none;
+                box-shadow: 0 6px 24px -8px color-mix(in oklab, #000 38%, transparent);
+                backdrop-filter: blur(16px) saturate(1.2);
+                -webkit-backdrop-filter: blur(16px) saturate(1.2);
+                filter: none;
+
+                border-radius: 22%;
+
+                &[data-shape="circle"] {
+                    border-radius: 50%;
+                }
+
+                &[data-shape="square"] {
+                    border-radius: max(0.55rem, 14%);
+                }
+
+                &[data-shape="squircle"] {
+                    border-radius: 22%;
+                }
+
+                .ui-ws-item-icon-image {
+                    position: absolute;
+                    inset: 0.45rem;
+                    inline-size: calc(100% - 0.9rem);
+                    block-size: calc(100% - 0.9rem);
+                    object-fit: contain;
+                    object-position: center;
+                    pointer-events: none;
+                    z-index: 3;
+                    filter: drop-shadow(0 1px 3px #0003);
+                }
+
+                ui-icon {
+                    --icon-size: clamp(1.6rem, 60%, 2.4rem);
+                    color: var(--on-surface-variant, var(--on-surface-color, currentColor));
+                    aspect-ratio: 1 / 1;
+                    max-inline-size: var(--icon-size, 1.8rem);
+                    max-block-size: var(--icon-size, 1.8rem);
+                    min-inline-size: fit-content;
+                    min-block-size: fit-content;
+                    inline-size: var(--icon-size, 1.8rem);
+                    block-size: var(--icon-size, 1.8rem);
+                    object-fit: contain;
+                    object-position: center;
+                    line-height: 0;
+                    z-index: 2;
+                    pointer-events: none;
+                    filter: drop-shadow(0 1px 2px #0002);
+                }
+            }
+
+            .ui-ws-item-label {
+                position: absolute;
+                inset-inline: 0;
+                inset-block-start: 100%;
+                pointer-events: none;
+                text-align: center;
+                display: flex;
+                justify-content: center;
+                align-items: flex-start;
+                padding-block-start: 0.35rem;
+                color: var(--on-surface-color, currentColor);
+                background: transparent;
+                white-space: nowrap;
+                overflow: visible;
+                filter: none;
+
+                span {
+                    display: inline-flex;
+                    place-content: center;
+                    place-items: center;
+
+                    font-size: 0.72rem;
+                    font-weight: 500;
+                    letter-spacing: 0.01em;
+                    color: color-mix(in oklab, var(--on-surface-color, #e5e7eb) 90%, transparent);
+
+                    white-space: nowrap;
+                    text-overflow: ellipsis;
+                    overflow: hidden;
+                    padding-block: 0.15rem;
+                    padding-inline: 0.4rem;
+                    max-inline-size: min(100%, 9rem);
+                    inline-size: max-content;
+                    border-radius: 6px;
+                    pointer-events: none;
+                    text-align: center;
+                    line-height: 1.25;
+
+                    text-shadow: 0 1px 4px #0006;
+                    border: none;
+                    background: transparent;
+                    backdrop-filter: none;
+                    -webkit-backdrop-filter: none;
+                    box-shadow: none;
+                }
+            }
+
+            &:active {
+                will-change: transform;
+            }
+
+            &[data-interaction-state="onGrab"],
+            &[data-interaction-state="onMoving"] {
+                will-change: transform;
+                cursor: grabbing;
+                z-index: 120;
+                transition: none !important;
+                transform:
+                    translate3d(
+                        calc(var(--cs-drag-x, 0px) + var(--cs-transition-c, 0px)),
+                        calc(var(--cs-drag-y, 0px) + var(--cs-transition-r, 0px)),
+                        0px
+                    ) !important;
+
+                .ui-ws-item-label {
+                    opacity: 1;
+                    pointer-events: none;
+                }
+            }
+
+            &[data-interaction-state="onRelax"] {
+                will-change: transform;
+                z-index: 120;
+                transform:
+                    translate3d(
+                        calc(var(--cs-drag-x, 0px) + var(--cs-transition-c, 0px)),
+                        calc(var(--cs-drag-y, 0px) + var(--cs-transition-r, 0px)),
+                        0px
+                    ) !important;
+            }
+
+            &[data-interaction-state="onPlace"] {
+                will-change: transform;
+                z-index: 120;
+                transition:
+                    transform var(--drag-settle-ms, 240ms) cubic-bezier(0.22, 0.8, 0.3, 1),
+                    filter var(--transition-fast) var(--ease-out) !important;
+                transform:
+                    translate3d(
+                        calc(var(--cs-drag-x, 0px) + var(--cs-transition-c, 0px)),
+                        calc(var(--cs-drag-y, 0px) + var(--cs-transition-r, 0px)),
+                        0px
+                    ) !important;
+            }
+
+            &[data-layer="labels"] {
+                z-index: 0;
+                filter: none;
+                background: transparent !important;
+                pointer-events: none !important;
+                transition:
+                    transform var(--drag-settle-ms, 240ms) cubic-bezier(0.22, 0.8, 0.3, 1);
+
+                .ui-ws-item-label {
+                    background: transparent !important;
+                    pointer-events: none !important;
+                }
+
+                .ui-ws-item-label span {
+                    pointer-events: none !important;
+                }
+            }
+
+            // Label layer: independent of icon drag offset; only grid cell (synced on m-dragsettled).
+            &[data-layer="labels"][data-interaction-state="onLabelDocked"] {
+                transform: none !important;
+                transition: none !important;
+                cursor: default;
+            }
+
+            &[data-layer="labels"][data-interaction-state="onGrab"],
+            &[data-layer="labels"][data-interaction-state="onMoving"] {
+                transition: none !important;
+            }
+
+            &[data-layer="icons"] {
+                z-index: 99;
+                filter: none;
+                touch-action: none;
+            }
+
+            &[data-layer="icons"][data-interaction-state="onGrab"],
+            &[data-layer="icons"][data-interaction-state="onMoving"],
+            &[data-layer="icons"][data-interaction-state="onRelax"] {
+                z-index: 120;
+            }
+        }
+    }
+
+    // Home orient layer: tighter padding and tiles on narrow / short containers (parent `ui-orientbox` is `container-type: size`).
+    .speed-dial-root.app-oriented-desktop {
+        .speed-dial-grid.app-oriented-desktop__grid--labels,
+        .speed-dial-grid.app-oriented-desktop__grid--icons {
+            @container (max-width: 28rem) {
+                padding-inline: clamp(0.35rem, 3.2cqw, var(--padding-lg));
+                padding-block: clamp(0.35rem, 2.8cqh, var(--padding-lg));
+            }
+
+            @container (max-height: 29rem) {
+                padding-block: clamp(0.3rem, 2.2cqh, var(--padding-md));
+            }
+        }
+
+        .ui-ws-item {
+            @container (max-width: 28rem) {
+                --tile-size: clamp(2.6rem, 11cqmin, 4.2rem);
+
+                .ui-ws-item-icon {
+                    padding: 0.65rem;
+                }
+            }
+        }
+    }
+
+    .speed-dial-editor {
+        position: fixed;
+        inset: 0;
+        z-index: 1200;
+        display: grid;
+        place-items: center;
+        background: color-mix(in oklab, #020617 58%, transparent);
+        backdrop-filter: blur(8px) saturate(1.05);
+        -webkit-backdrop-filter: blur(8px) saturate(1.05);
+        pointer-events: auto;
+        padding: 1rem;
+    }
+
+    .speed-dial-editor__form {
+        inline-size: min(100%, 980px);
+        margin-inline: auto;
+        border-radius: 18px;
+        border: none;
+        background: color-mix(in oklab, var(--color-surface, #0b1220) 88%, #000);
+        color: var(--color-on-surface, #e2e8f0);
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        max-block-size: min(86vh, 760px);
+        overflow: hidden;
+        box-shadow:
+            0 24px 64px -28px color-mix(in oklab, #000 65%, transparent),
+            0 0 0 1px color-mix(in oklab, var(--color-outline-variant, #334155) 35%, transparent) inset;
+    }
+
+    .speed-dial-editor__form .modal-header {
+        display: grid;
+        gap: 0.4rem;
+        padding: 1rem 1rem 0.75rem;
+        border-block-end: none;
+        box-shadow: 0 1px 0 color-mix(in oklab, var(--color-outline-variant, #334155) 28%, transparent);
+    }
+
+    .speed-dial-editor__form .modal-title {
+        margin: 0;
+        font-size: 1.2rem;
+        font-weight: 650;
+        line-height: 1.25;
+    }
+
+    .speed-dial-editor__form .modal-description {
+        margin: 0;
+        font-size: 0.86rem;
+        line-height: 1.35;
+        color: color-mix(in oklab, var(--color-on-surface, #e2e8f0) 72%, transparent);
+    }
+
+    .speed-dial-editor__form .modal-fields {
+        display: grid;
+        gap: 0.75rem;
+        padding: 0.9rem 1rem 1rem;
+        overflow: auto;
+        min-block-size: 0;
+        align-content: start;
+    }
+
+    .speed-dial-editor__form .modal-field {
+        display: grid;
+        gap: 0.35rem;
+    }
+
+    .speed-dial-editor__form .modal-field > span {
+        font-size: 0.84rem;
+        color: color-mix(in oklab, var(--color-on-surface, #e2e8f0) 76%, transparent);
+    }
+
+    .speed-dial-editor__form :is(input, select, textarea) {
+        inline-size: 100%;
+        min-inline-size: 0;
+        border-radius: 8px;
+        border: 1px solid color-mix(in oklab, var(--color-outline-variant, #334155) 75%, transparent);
+        background: color-mix(in oklab, var(--color-surface-container-low, #101827) 88%, transparent);
+        color: var(--color-on-surface, #e2e8f0);
+        padding: 0.55rem 0.7rem;
+        outline: none;
+        appearance: none;
+    }
+
+    .speed-dial-editor__form textarea {
+        resize: vertical;
+        min-block-size: 4.4rem;
+    }
+
+    .speed-dial-editor__form :is(input, select, textarea):focus {
+        border-color: color-mix(in oklab, var(--color-primary, #3b82f6) 64%, #fff 8%);
+        box-shadow: 0 0 0 2px color-mix(in oklab, var(--color-primary, #3b82f6) 26%, transparent);
+    }
+
+    .speed-dial-editor__form .modal-actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        padding: 0.75rem 1rem;
+        border-block-start: 1px solid color-mix(in oklab, var(--color-outline-variant, #334155) 64%, transparent);
+        background: color-mix(in oklab, var(--color-surface-container, #172032) 42%, transparent);
+    }
+
+    .speed-dial-editor__form :is(.modal-actions-left, .modal-actions-right) {
+        display: inline-flex;
+        gap: 0.5rem;
+        align-items: center;
+    }
+
+    .speed-dial-editor__form .btn {
+        border-radius: 8px;
+        border: 1px solid color-mix(in oklab, var(--color-outline-variant, #334155) 72%, transparent);
+        padding: 0.46rem 0.86rem;
+        font-size: 0.86rem;
+        line-height: 1.2;
+        cursor: pointer;
+        color: var(--color-on-surface, #e2e8f0);
+        background: color-mix(in oklab, var(--color-surface-container, #172032) 62%, transparent);
+    }
+
+    .speed-dial-editor__form .btn.secondary {
+        background: color-mix(in oklab, var(--color-surface-container, #172032) 48%, transparent);
+    }
+
+    .speed-dial-editor__form .btn.save {
+        border-color: color-mix(in oklab, var(--color-primary, #3b82f6) 60%, transparent);
+        background: color-mix(in oklab, var(--color-primary, #3b82f6) 40%, #0b1220);
+        color: #fff;
+    }
+
+    .speed-dial-editor__form .btn.danger {
+        border-color: color-mix(in oklab, var(--color-error, #ef4444) 64%, transparent);
+        background: color-mix(in oklab, var(--color-error, #ef4444) 28%, #1f0a0a);
+        color: #fff;
+    }
+
+    .speed-dial-editor__form .btn:hover {
+        filter: brightness(1.08);
+    }
+
+    .speed-dial-editor__form [hidden] {
+        display: none !important;
+    }
+
+    @media (max-width: 820px) {
+        .speed-dial-editor {
+            place-items: center;
+        }
+        .speed-dial-editor__form {
+            inline-size: 100%;
+            max-block-size: 94vh;
+        }
+    }
+}
+
+@layer view.home {
+    :root:has([data-view="home"]),
+    html:has([data-view="home"]) {
+        /* colors */
+        --view-home-bg: linear-gradient(135deg, light-dark(#f8f9fa, #1b1f24) 0%, light-dark(#e9ecef, #0f1216) 100%);
+        --view-fg: light-dark(#1a1a1a, #e9ecef);
+        --view-border: light-dark(rgba(0, 0, 0, 0.08), rgba(255, 255, 255, 0.12));
+        --view-card-bg: light-dark(#ffffff, #1a1f26);
+        --view-primary: light-dark(#007acc, #66b7ff);
+
+        /* layout */
+        --view-layout: "flex";
+        --view-padding: var(--space-8);
+        --view-content-max-width: 1200px;
+        --view-hero-padding: var(--space-16);
+        --view-card-gap: var(--space-6);
+    }
+
+    .view-home {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        block-size: 100%;
+        padding: 2rem;
+        background: var(--view-home-bg);
+        color: var(--view-fg);
+        overflow-y: auto;
+
+        &__content {
+            text-align: center;
+            max-inline-size: 800px;
+        }
+
+        &__header {
+            margin-block-end: 3rem;
+        }
+
+        &__title {
+            margin: 0;
+            font-size: 3rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--view-primary) 0%, light-dark(#0059a6, #3a8ad6) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        &__subtitle {
+            margin: 0.5rem 0 0;
+            font-size: 1.125rem;
+            color: var(--view-fg);
+            opacity: 0.7;
+        }
+
+        &__actions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        &__action {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1.5rem;
+            border: 1px solid var(--view-border);
+            border-radius: 16px;
+            background-color: var(--view-card-bg);
+            color: var(--view-fg);
+            text-align: center;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+
+            ui-icon {
+                opacity: 0.8;
+                color: var(--view-primary);
+            }
+
+            &:hover {
+                transform: translateY(-4px);
+                box-shadow: 0 8px 24px light-dark(rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.4));
+                border-color: var(--view-primary);
+
+                ui-icon {
+                    opacity: 1;
+                }
+            }
+
+            &:focus-visible {
+                outline: 2px solid var(--view-primary);
+                outline-offset: 2px;
+            }
+        }
+
+        &__action-title {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        &__action-desc {
+            font-size: 0.8125rem;
+            opacity: 0.6;
+        }
+    }
+
+    /* Base/minimal shell home should behave as desktop grid host. */
+    .view-home--grid {
+        position: relative;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr);
+        align-items: stretch;
+        justify-items: stretch;
+        block-size: 100%;
+        inline-size: 100%;
+        padding: 0;
+        overflow: hidden;
+        background: transparent;
+
+        .speed-dial-root {
+            position: absolute;
+            inset: 0;
+            inline-size: 100%;
+            block-size: 100%;
+            max-inline-size: 100%;
+            max-block-size: 100%;
+            overflow: hidden;
+        }
+    }
+
+    @container (max-width: 768px) {
+        .view-home {
+            --view-hero-padding: var(--space-8);
+            --view-card-gap: var(--space-4);
+        }
+    }
+
+    @container (max-width: 480px) {
+        .view-home__actions {
+            grid-template-columns: 1fr;
+        }
+    }
+}
