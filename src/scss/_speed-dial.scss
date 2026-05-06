@@ -1,4 +1,4 @@
-@use "../../../lib/core/orient/viewport" as *;
+@use "../lib/core/orient/viewport" as *;
 
 //
 // Desktop-like launcher / speed-dial grids (orient-aware drag + placement).
@@ -28,12 +28,19 @@
         --layout-c: 4;
         --layout-r: 8;
 
+        --sd-inherit-layout-c: var(--layout-c, 4);
+        --sd-inherit-layout-r: var(--layout-r, 8);
+        --sd-inherit-cs-layout-c: var(--cs-layout-c, var(--layout-c, 4));
+        --sd-inherit-cs-layout-r: var(--cs-layout-r, var(--layout-r, 8));
+
         grid-template-columns: repeat(var(--cs-layout-c, 4), minmax(0px, 1fr));
         grid-template-rows: repeat(var(--cs-layout-r, 8), minmax(0px, 1fr));
 
         //
         & > :where(.ui-ws-item, [data-launcher-item]) {
             @include compute_grid_item_cell();
+            --f-col: clamp(1, var(--sd-inherit-layout-c, var(--layout-c, 4)), 16);
+            --f-row: clamp(1, var(--sd-inherit-layout-r, var(--layout-r, 8)), 16);
             pointer-events: auto;
         }
     }

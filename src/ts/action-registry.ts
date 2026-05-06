@@ -10,8 +10,31 @@ import {
     type SpeedDialItem,
     type SpeedDialMetaRegistry
 } from "./launcher-state";
-import { showSuccess, showError } from "../../misc/Toast";
+import { showSuccess, showError } from "./toast";
 import { getSpeedDialViewOpener } from "./view-opener";
+import {
+    MARKDOWN_VIEW_MANAGED_WINDOW_KEY,
+    normalizeMarkdownViewWindowId
+} from "../../../../shells/window-frame/src/views/markdown-view-window";
+
+/**
+ * Resolve speed-dial / shortcut `meta.view` and desktop `viewId` strings to a canonical `ViewId`.
+ * WHY: Persisted rows may store the human label ("Markdown", "Plan") or legacy ids; {@link normalizeMarkdownViewWindowId}
+ * only covers the markdown family.
+ */
+export function resolveOpenViewTarget(raw: string | undefined | null): string {
+    const t = String(raw ?? "").trim();
+    if (!t) return "";
+    const tLower = t.toLowerCase().replace(/^#/, "");
+    const byShortcut = NAVIGATION_SHORTCUTS.find(
+        (s) =>
+            String(s.view).toLowerCase() === tLower ||
+            String(s.label).trim().toLowerCase() === tLower
+    );
+    if (byShortcut) return String(byShortcut.view);
+    const md = normalizeMarkdownViewWindowId(t);
+    return md || t.replace(/^#/, "").trim();
+}
 
 /** Same arity as handlers invoked from SpeedDial.runItemAction. */
 export type SpeedDialActionHandler = (context: any, second?: any, third?: HTMLElement) => any;
@@ -81,7 +104,8 @@ const installBuiltins = (): void => {
         const item = context?.items?.find?.((i: SpeedDialItem) => i?.id === context?.id) || null;
         const metaMap = context?.meta as SpeedDialMetaRegistry | undefined;
         const meta = item && metaMap?.get ? metaMap.get(item.id) : null;
-        const targetView = meta?.view || entityDesc?.view || entityDesc?.type || "";
+        const rawTarget = meta?.view || entityDesc?.view || entityDesc?.type || "";
+        const targetView = resolveOpenViewTarget(String(rawTarget || ""));
         if (!targetView) {
             showError("No view target");
             return;
@@ -161,6 +185,29 @@ const installBuiltins = (): void => {
                 });
             });
         }
+    }
+
+    /*
+     * WHY: `NAVIGATION_SHORTCUTS` registers `open-view-viewer` only; persisted grids / older builds used
+     * `open-view-markdown` or `open-view-reader`. Re-map to canonical `viewer` (markdown-view module).
+     */
+    const viewerAliasActions: Array<{ alias: string; label: string }> = [
+        { alias: "markdown", label: "Markdown" },
+        { alias: "reader", label: "Markdown" }
+    ];
+    for (const { alias, label } of viewerAliasActions) {
+        const actionId = `open-view-${alias}`;
+        if (actionRegistry.has(actionId)) continue;
+        iconsPerAction.set(actionId, "article");
+        labelsPerAction.set(actionId, () => `Open ${label}`);
+        actionRegistry.set(actionId, async (context: any) => {
+            return actionRegistry.get("open-view")?.(context, {
+                label,
+                type: MARKDOWN_VIEW_MANAGED_WINDOW_KEY,
+                view: MARKDOWN_VIEW_MANAGED_WINDOW_KEY,
+                DIR: "/"
+            });
+        });
     }
 };
 

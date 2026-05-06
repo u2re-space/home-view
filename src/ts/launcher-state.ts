@@ -40,6 +40,7 @@ export interface SpeedDialItem {
 
 export const NAVIGATION_SHORTCUTS = [
     { view: "home", label: "Home", icon: "house-line" },
+    { view: "viewer", label: "Markdown", icon: "article" },
     { view: "task", label: "Plan", icon: "calendar-dots" },
     { view: "event", label: "Events", icon: "calendar-star" },
     { view: "bonus", label: "Bonuses", icon: "ticket" },

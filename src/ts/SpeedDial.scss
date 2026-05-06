@@ -1,5 +1,7 @@
 // Orientbox + launcher grid: swaps logical 4×8 into 8×4 on landscape (orient 1/3) via `--cs-layout-*`.
-@use "veela-lib" as *;
+@use "../../../../projects/veela.css/src/scss/index.scss" as *;
+/* WHY: Veela `compute_grid_item_cell` / `compute_orient_grid_layout` reference `--get-oriented-*` CSS functions; they are defined here, not in the Veela barrel. Without this import, `--cs-grid-*` never resolves and every `.ui-ws-item` stacks in cell (1,1). */
+@use "../scss/orientation-functions" as *;
 
 @layer views {
 
@@ -54,6 +56,7 @@
         pointer-events: auto;
     }
 
+    /* Includes `app-oriented-desktop__grid`; parent `ui-orientbox` supplies `--orient`; this grid’s `compute_orient_grid_layout` publishes `--cs-layout-*` into `--sd-inherit-*` for items. */
     .speed-dial-grid {
         --grid-cols: 4;
         --grid-rows: 8;
@@ -78,6 +81,28 @@
 
         --layout-c: var(--grid-cols, 4);
         --layout-r: var(--grid-rows, 8);
+
+        /* WHY: Unregistered inheriting bridge — closest grid parent passes logical + orient-swapped track counts to `.ui-ws-item` (registered `--layout-*` / `--cs-layout-*` may not inherit). */
+        --sd-inherit-layout-c: var(--layout-c, 4);
+        --sd-inherit-layout-r: var(--layout-r, 8);
+        --sd-inherit-cs-layout-c: var(--cs-layout-c, var(--layout-c, 4));
+        --sd-inherit-cs-layout-r: var(--cs-layout-r, var(--layout-r, 8));
+
+        /* WHY: Without {@link compute_orient_grid_layout} + {@link compute_grid_item_cell}, `--cs-grid-*` stays 0 and every tile stacks in cell (1,1). */
+        @include compute_orient_grid_layout();
+        display: grid;
+        position: relative;
+        container-type: size;
+        box-sizing: border-box;
+        inline-size: stretch;
+        block-size: stretch;
+        min-inline-size: 0;
+        min-block-size: 0;
+        gap: 0;
+        place-content: start;
+        place-items: center;
+        grid-template-columns: repeat(var(--cs-layout-c, 4), minmax(0, 1fr));
+        grid-template-rows: repeat(var(--cs-layout-r, 8), minmax(0, 1fr));
 
         border-radius: 0px;
 
@@ -104,14 +129,24 @@
         }
 
         .ui-ws-item {
+            /* WHY: Veela registers `--layout-c`/`--layout-r` with `inherits: false`; items used initial 1×1 grid and every tile landed in the same cell (overlapping icons/labels). */
+            --layout-c: inherit;
+            --layout-r: inherit;
+
+            @include compute_grid_item_cell();
+
+            /* WHY: Override mixin `--f-col`/`--f-row` (see `--sd-inherit-*` on `.speed-dial-grid`). */
+            --f-col: clamp(1, var(--sd-inherit-layout-c, var(--layout-c, 4)), 16);
+            --f-row: clamp(1, var(--sd-inherit-layout-r, var(--layout-r, 8)), 16);
+
             --drag-x: 0;
             --drag-y: 0;
             --cs-drag-x: calc(var(--drag-x, 0) * 1px);
             --cs-drag-y: calc(var(--drag-y, 0) * 1px);
             --tile-size: clamp(3.2rem, 7.5vmin, 4.6rem);
 
-            grid-column: clamp(1, calc(1 + round(nearest, var(--cs-grid-c, 0), 1)), var(--cs-layout-c, 4));
-            grid-row: clamp(1, calc(1 + round(nearest, var(--cs-grid-r, 0), 1)), var(--cs-layout-r, 8));
+            grid-column: clamp(1, calc(1 + round(nearest, var(--cs-grid-c, 0), 1)), var(--sd-inherit-cs-layout-c, var(--cs-layout-c, 4)));
+            grid-row: clamp(1, calc(1 + round(nearest, var(--cs-grid-r, 0), 1)), var(--sd-inherit-cs-layout-r, var(--cs-layout-r, 8)));
 
             position: relative;
             display: grid;
@@ -221,7 +256,12 @@
 
                 ui-icon {
                     --icon-size: clamp(1.6rem, 60%, 2.4rem);
-                    color: var(--on-surface-variant, var(--on-surface-color, currentColor));
+                    /* WHY: Phosphor pipeline reads `--icon-color`; bridge Veela/M3 tokens for light + dark shells. */
+                    --icon-color: var(
+                        --on-surface-variant,
+                        var(--color-on-surface-variant, var(--on-surface-color, var(--color-on-surface, currentColor)))
+                    );
+                    color: var(--icon-color, currentColor);
                     aspect-ratio: 1 / 1;
                     max-inline-size: var(--icon-size, 1.8rem);
                     max-block-size: var(--icon-size, 1.8rem);
@@ -262,7 +302,7 @@
                     font-size: 0.72rem;
                     font-weight: 500;
                     letter-spacing: 0.01em;
-                    color: color-mix(in oklab, var(--on-surface-color, #e5e7eb) 90%, transparent);
+                    color: color-mix(in oklab, var(--on-surface-color, currentColor) 90%, transparent);
 
                     white-space: nowrap;
                     text-overflow: ellipsis;

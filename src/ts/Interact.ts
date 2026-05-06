@@ -37,8 +37,8 @@ const registeredCSSProperties = new Set<string>();
     { name: "--os-grid-c", syntax: "<number>", inherits: false, initialValue: "0" },
     { name: "--rv-grid-r", syntax: "<number>", inherits: false, initialValue: "0" },
     { name: "--rv-grid-c", syntax: "<number>", inherits: false, initialValue: "0" },
-    { name: "--cell-x", syntax: "<number>", inherits: false, initialValue: "0" },
-    { name: "--cell-y", syntax: "<number>", inherits: false, initialValue: "0" },
+    { name: "--cell-x", syntax: "<integer>", inherits: false, initialValue: "0" },
+    { name: "--cell-y", syntax: "<integer>", inherits: false, initialValue: "0" },
 ] as PropertyDefinition[]).forEach((prop) => {
     if (typeof CSS !== "undefined" && !registeredCSSProperties.has(prop.name)) {
         try { CSS.registerProperty?.(prop); registeredCSSProperties.add(prop.name); } catch {}

@@ -334,6 +334,11 @@
 
 //
 @mixin compute_grid_item_cell() {
+    /* WHY: `v2-coord-num` maps logical `--cell-x`/`--cell-y` into physical `cs-grid-*` using `--orient` from the launcher / `ui-orientbox` host; without inherit, items see initial `0` and placement ignores rotation. */
+    & {
+        --orient: inherit;
+    }
+
     // hack: use translate diff shifting for correct animation for CSS Grid Layout
     & { // currently, I have no viable solution for correct animation for CSS Grid Layout
         @include v2-pair(

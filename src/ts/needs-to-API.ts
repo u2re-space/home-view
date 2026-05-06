@@ -43,7 +43,7 @@ export class HomeView implements View {
                 </header>
                 <nav class="view-home__nav" aria-label="Quick open">
                     <button type="button" class="view-home__btn" data-open="workcenter">Work Center</button>
-                    <button type="button" class="view-home__btn" data-open="viewer">Viewer</button>
+                    <button type="button" class="view-home__btn" data-open="viewer">Markdown</button>
                     <button type="button" class="view-home__btn" data-open="explorer">Explorer</button>
                     <button type="button" class="view-home__btn" data-open="settings">Settings</button>
                 </nav>

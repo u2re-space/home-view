@@ -28,7 +28,17 @@ import speedDialViewStyles from "./SpeedDial.scss?inline";
 // Registers `data-mixin="ui-orientbox"` (container-type / --orient wiring).
 import "./OrientBox";
 import { setAppWallpaper } from "../../misc/Canvas-2";
-import { closeUnifiedContextMenu, ContextMenuEntry, openUnifiedContextMenu } from "fl-ui/explorer/ContextMenu";
+import {
+    closeUnifiedContextMenu,
+    type ContextMenuEntry,
+    openUnifiedContextMenu
+} from "../../../explorer-view/src/ts/ContextMenu";
+import { getSpeedDialViewOpener } from "./view-opener";
+import {
+    MARKDOWN_VIEW_MANAGED_WINDOW_KEY
+} from "../../../../shells/window-frame/src/views/markdown-view-window";
+import { resolveOpenViewTarget } from "./action-registry";
+import { navigate } from "fest/lure";
 
 /** Orient-layer desktop shares SpeedDial styles; HomeView only adopts this sheet while home is visible, so load once here. */
 let orientDesktopStyleSheet: CSSStyleSheet | null = null;
@@ -87,7 +97,7 @@ const DEFAULT_STATE: DesktopState = {
     columns: 4,
     rows: 8,
     items: [
-        { id: "viewer", label: "Viewer", icon: "article", viewId: "viewer", cell: [0, 0], action: "open-view", shape: "squircle" },
+        { id: "viewer", label: "Markdown", icon: "article", viewId: "viewer", cell: [0, 0], action: "open-view", shape: "squircle" },
         { id: "explorer", label: "Explorer", icon: "books", viewId: "explorer", cell: [1, 0], action: "open-view", shape: "squircle" },
         { id: "settings", label: "Settings", icon: "gear-six", viewId: "settings", cell: [2, 0], action: "open-view", shape: "squircle" },
         { id: "airpad", label: "AirPad", icon: "paper-plane-tilt", viewId: "airpad", cell: [3, 0], action: "open-view", shape: "squircle" }
@@ -396,21 +406,38 @@ const openDesktopItem = (item: DesktopItem): void => {
         window.open(item.href, "_blank", "noopener,noreferrer");
         return;
     }
-    /*requestOpenView({
-        viewId: item.viewId,
-        target: "window",
-        params: {
-            source: "home",
-            itemId: item.id
-        }
-    });*/
+    const target = resolveDesktopShellViewId(item.viewId, MARKDOWN_VIEW_MANAGED_WINDOW_KEY);
+    const opener = getSpeedDialViewOpener();
+    if (opener) {
+        opener(target, { source: "home", itemId: item.id });
+        return;
+    }
+    console.warn("[OrientDesktop] No view opener registered; using hash fallback for:", target);
+    navigate(`#${target}`);
 };
 
 const prettifyView = (viewId: string): string => {
     const value = String(viewId || "").trim();
     if (!value) return "View";
+    /* Canonical `viewer` id → markdown-view module (same as shell `VIEW_TITLES.viewer`). */
+    if (value.toLowerCase() === MARKDOWN_VIEW_MANAGED_WINDOW_KEY) return "Markdown";
     return value.charAt(0).toUpperCase() + value.slice(1);
 };
+
+/**
+ * Desktop tile `viewId` → shell `openView` id (collapses `markdown` → `viewer` per {@link MARKDOWN_VIEW_MANAGED_WINDOW_KEY}).
+ */
+const resolveDesktopShellViewId = (raw: string | undefined | null, fallback: string): string => {
+    const t = String(raw ?? "").trim();
+    if (!t) return fallback;
+    return resolveOpenViewTarget(t) || fallback;
+};
+
+/** See `markdown-view-window.ts`: primary id is {@link MARKDOWN_VIEW_MANAGED_WINDOW_KEY}; label “Markdown”. */
+const DESKTOP_SHELL_VIEW_OPTIONS = (
+    [MARKDOWN_VIEW_MANAGED_WINDOW_KEY, "explorer", "settings", "airpad", "workcenter", "history", "editor"] as const
+).map((viewId) => ({ value: viewId, label: prettifyView(viewId) }));
+
 
 export const initializeOrientedDesktop = (host: HTMLElement): void => {
     if (!host || host.dataset.desktopMounted === "true") return;
@@ -639,6 +666,7 @@ export const initializeOrientedDesktop = (host: HTMLElement): void => {
         el.dataset.layer = "icons";
         el.setAttribute("draggable", "false");
         applyCellVars(el, item.cell);
+        applyGridLayoutVars(el);
         const icon = document.createElement("div");
         icon.className = "ui-ws-item-icon shaped";
         icon.dataset.shape = normalizeTileShape(item.shape);
@@ -670,6 +698,7 @@ export const initializeOrientedDesktop = (host: HTMLElement): void => {
         el.style.pointerEvents = "none";
         el.style.background = "transparent";
         applyCellVars(el, item.cell);
+        applyGridLayoutVars(el);
         el.innerHTML = `<div class="ui-ws-item-label"><span>${escapeHtml(item.label)}</span></div>`;
         return el;
     };
@@ -826,7 +855,7 @@ export const initializeOrientedDesktop = (host: HTMLElement): void => {
                 label: seed.label || "New shortcut",
                 icon: seed.icon || "sparkle",
                 iconSrc: "",
-                viewId: /*pickEnabledView(seed.viewId || "viewer", "home")*/`TODO: ${seed.viewId}`,
+                viewId: resolveDesktopShellViewId(seed.viewId, MARKDOWN_VIEW_MANAGED_WINDOW_KEY),
                 cell: suggestedCell,
                 action: seed.action || "open-view",
                 href: seed.href || "",
@@ -845,16 +874,16 @@ export const initializeOrientedDesktop = (host: HTMLElement): void => {
                 shape: normalizeTileShape(workingItem.shape)
             },
             actionOptions: ACTION_OPTIONS,
-            viewOptions: /*ENABLED_VIEW_IDS.map((viewId) => ({ value: viewId, label: prettifyView(viewId) }))*/[],
+            viewOptions: DESKTOP_SHELL_VIEW_OPTIONS,
             onSave: (next) => {
                 const action = String(next.action || "open-view") as DesktopAction;
                 const nextHref = String(next.href || "").trim();
-                //const nextView = pickEnabledView(String(next.view || workingItem.viewId || "viewer"), "home");
                 workingItem.label = String(next.label || "Item").trim() || "Item";
                 workingItem.icon = String(next.icon || "sparkle").trim() || "sparkle";
                 workingItem.action = action;
                 workingItem.href = action === "open-link" ? nextHref : "";
-                workingItem.viewId = action === "open-link" ? "home" : `TODO: ${next.view}`;
+                workingItem.viewId =
+                    action === "open-link" ? "home" : resolveDesktopShellViewId(next.view, MARKDOWN_VIEW_MANAGED_WINDOW_KEY);
                 workingItem.shape = normalizeTileShape(next.shape);
                 if (action === "open-link" && nextHref) {
                     try {

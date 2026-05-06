@@ -1,5 +1,6 @@
 {
     "include": [
+        "./misc/**/*.ts",
         "./src/**/*.ts",
         "./test/*.ts",
         "./test/**/*.ts",
@@ -76,7 +77,7 @@
                 "../../projects/shared/fest/polyfill/*"
             ],
             "veela-lib": [
-                "../../projects/veela.css/src/scss/lib/index.scss"
+                "../../projects/veela.css/src/scss/index.scss"
             ],
             "veela-lib/*": [
                 "../../projects/veela.css/src/scss/lib/*"

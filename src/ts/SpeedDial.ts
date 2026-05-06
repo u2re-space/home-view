@@ -2,7 +2,7 @@ import { observe, numberRef, propRef, stringRef, affected } from "fest/object";
 import { E, H, orientRef, M, provide, handleIncomingEntries } from "fest/lure";
 import { pointerAnchorRef } from "fest/lure";
 import { bindInteraction, resolveGridCellFromClientPoint } from "./Interact";
-import { showSuccess, showError } from "../../misc/Toast";
+import { showSuccess, showError } from "./toast";
 import { openUnifiedContextMenu, type ContextMenuEntry } from "../explorer/ContextMenu";
 import {
     speedDialMeta,
@@ -102,12 +102,15 @@ const buildDescriptor = (item: SpeedDialItem) => {
 const bindCell = (el: HTMLElement, args: any) => {
     const { item } = args;
     const cell = item?.cell ?? [0, 0];
+    const layout = getLayout();
     E(el, {
         style: {
             "--cell-x": propRef(cell, 0),
             "--cell-y": propRef(cell, 1),
             "--p-cell-x": propRef(cell, 0),
-            "--p-cell-y": propRef(cell, 1)
+            "--p-cell-y": propRef(cell, 1),
+            "--layout-c": propRef(layout, 0),
+            "--layout-r": propRef(layout, 1)
         }
     });
 };
@@ -198,10 +201,13 @@ const attachItemNode = (item: SpeedDialItem, el?: HTMLElement | null, interactiv
     if (el.dataset.layer === "icons") {
         bindInteraction(el, { ...args, immediateDragStyles: true });
         const cell = item?.cell ?? [0, 0];
+        const layout = getLayout();
         E(el, {
             style: {
                 "--cell-x": propRef(cell, 0),
-                "--cell-y": propRef(cell, 1)
+                "--cell-y": propRef(cell, 1),
+                "--layout-c": propRef(layout, 0),
+                "--layout-r": propRef(layout, 1)
             }
         });
     }

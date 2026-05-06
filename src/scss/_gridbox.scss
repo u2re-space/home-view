@@ -1,4 +1,4 @@
-@use "../../../lib/core/orient/viewport" as *;
+@use "../lib/core/orient/viewport" as *;
 
 //
 @property --item-size {
@@ -18,6 +18,10 @@
         & {
             --c-gap: clamp(min(1rem, 8cqmin), min(calc(8cqmin / min(var(--layout-c, 4), var(--layout-r, 8))), calc(6cqmax / max(var(--layout-c, 4), var(--layout-r, 8)))), min(4rem, 16cqmin));
             --r-gap: clamp(min(1rem, 8cqmin), min(calc(8cqmin / min(var(--layout-c, 4), var(--layout-r, 8))), calc(6cqmax / max(var(--layout-c, 4), var(--layout-r, 8)))), min(4rem, 16cqmin));
+            --sd-inherit-layout-c: var(--layout-c, 4);
+            --sd-inherit-layout-r: var(--layout-r, 8);
+            --sd-inherit-cs-layout-c: var(--cs-layout-c, var(--layout-c, 4));
+            --sd-inherit-cs-layout-r: var(--cs-layout-r, var(--layout-r, 8));
         }
 
         //
@@ -96,9 +100,11 @@
         //
         & > :where(*) {
             @include compute_grid_item_cell();
+            --f-col: clamp(1, var(--sd-inherit-layout-c, var(--layout-c, 4)), 16);
+            --f-row: clamp(1, var(--sd-inherit-layout-r, var(--layout-r, 8)), 16);
 
             // calculate visible size
-            & { --item-size: clamp(4rem, calc(100cqmax / min(var(--cs-layout-c, 4), var(--cs-layout-r, 8))), 5rem); }
+            & { --item-size: clamp(4rem, calc(100cqmax / min(var(--sd-inherit-cs-layout-c, var(--cs-layout-c, 4)), var(--sd-inherit-cs-layout-r, var(--cs-layout-r, 8)))), 5rem); }
             & :where(*) {--drag-x: 0; --drag-y: 0; }
 
             // dragging coordinate
@@ -114,8 +120,8 @@
 
             //
             & {
-                grid-column: clamp(1, calc(1 + round(nearest, var(--cs-grid-c, 0), 1)), var(--cs-layout-c, 4)) !important;
-                grid-row: clamp(1, calc(1 + round(nearest, var(--cs-grid-r, 0), 1)), var(--cs-layout-r, 8)) !important;
+                grid-column: clamp(1, calc(1 + round(nearest, var(--cs-grid-c, 0), 1)), var(--sd-inherit-cs-layout-c, var(--cs-layout-c, 4))) !important;
+                grid-row: clamp(1, calc(1 + round(nearest, var(--cs-grid-r, 0), 1)), var(--sd-inherit-cs-layout-r, var(--cs-layout-r, 8))) !important;
                 cursor: pointer;
 
                 //

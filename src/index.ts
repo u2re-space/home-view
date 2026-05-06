@@ -1,7 +1,12 @@
 import type { BaseViewOptions, ShellContext, View, ViewLifecycle, ViewOptions } from "views/types";
 import { HomeChannelAction } from "views/apis/channel-actions";
+import { initializeOrientedDesktop } from "./ts/OrientDesktop";
+import { setSpeedDialViewOpener } from "./ts/view-opener";
+import { resolveOpenViewTarget } from "./ts/action-registry";
 
 export type HomeViewOptions = BaseViewOptions;
+
+export { initializeOrientedDesktop } from "./ts/OrientDesktop";
 
 export class HomeView implements View {
     id = "home";
@@ -14,6 +19,7 @@ export class HomeView implements View {
 
     lifecycle: ViewLifecycle = {
         onUnmount: () => {
+            setSpeedDialViewOpener(null);
             this.element = null;
         }
     };
@@ -23,6 +29,32 @@ export class HomeView implements View {
         this.shellContext = options.shellContext;
     }
 
+    /**
+     * WHY: {@link ShellBase.getContext} exposes `navigate` but not `openView`. Calling both caused a double
+     * `navigate("viewer")`; the second hit the same-view short-circuit so the overlay never opened reliably.
+     * Prefer `openView` when the host (e.g. environment-shell) provides it.
+     */
+    private dispatchShellRoute(viewId: string, opts?: ViewOptions): void {
+        const id = resolveOpenViewTarget(viewId);
+        if (!id) return;
+        const shellContext = this.shellContext;
+        if (!shellContext) {
+            console.warn("[HomeView] No shellContext; cannot open:", id);
+            return;
+        }
+        if (typeof shellContext.openView === "function") {
+            void Promise.resolve(shellContext.openView(id, opts)).catch((e) =>
+                console.warn("[HomeView] shellContext.openView failed", id, e)
+            );
+        } else if (typeof shellContext.navigate === "function") {
+            void Promise.resolve(shellContext.navigate(id, opts)).catch((e) =>
+                console.warn("[HomeView] shellContext.navigate failed", id, e)
+            );
+        } else {
+            console.warn("[HomeView] shellContext has no navigate/openView; cannot open:", id);
+        }
+    }
+
     render(options?: ViewOptions): HTMLElement {
         if (options) {
             this.options = { ...this.options, ...options };
@@ -30,27 +62,15 @@ export class HomeView implements View {
         }
 
         const root = document.createElement("section");
-        root.className = "view-home";
+        root.className = "view-home env-home-workspace";
         root.dataset.view = "home";
-        root.innerHTML = `
-            <header class="view-home__header">
-                <h1 class="view-home__title">U2RE Space</h1>
-                <p class="view-home__subtitle">Pick a workspace view to continue.</p>
-            </header>
-            <nav class="view-home__nav" aria-label="Quick open">
-                <button type="button" class="view-home__btn" data-open="workcenter">Work Center</button>
-                <button type="button" class="view-home__btn" data-open="viewer">Viewer</button>
-                <button type="button" class="view-home__btn" data-open="explorer">Explorer</button>
-                <button type="button" class="view-home__btn" data-open="settings">Settings</button>
-            </nav>
-        `;
+        root.id = "home";
 
-        root.querySelectorAll<HTMLElement>("[data-open]").forEach((button) => {
-            button.addEventListener("click", () => {
-                const viewId = button.dataset.open;
-                if (viewId) void this.shellContext?.navigate?.(viewId);
-            });
+        setSpeedDialViewOpener((viewId, params) => {
+            this.dispatchShellRoute(viewId, { params } as ViewOptions);
         });
+
+        initializeOrientedDesktop(root);
 
         this.element = root;
         return root;
@@ -65,7 +85,7 @@ export class HomeView implements View {
                   ? String((payload as Record<string, unknown>).viewId)
                   : "";
         if (!viewId.trim()) return false;
-        void this.shellContext?.navigate?.(viewId.trim());
+        this.dispatchShellRoute(viewId.trim());
         return true;
     }
 }

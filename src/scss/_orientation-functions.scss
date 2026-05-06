@@ -1,5 +1,6 @@
 @use "sass:string";
-@use "../../../lib/core/misc/functions" as func;
+/* NOTE: `make-func` lives in Veela (not `src/lib`); the old path was invalid. */
+@use "../../../../projects/veela.css/src/scss/core/misc/functions" as func;
 
 //
 @function css-rem($value, $mod) {
