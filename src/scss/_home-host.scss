@@ -1,0 +1,139 @@
+// HomeView host + optional shell integration (environment-shell, window-frame).
+// Loaded via adopted SpeedDial.scss — no dependency on `environment-shell/scss/*`.
+//
+// WHY: Shared demo mounts into `#app` with no intrinsic height; `%` + `min-block-size: 0` + abs
+// `.speed-dial-root` collapses the grid. Use `min-block-size: 100dvb` unless flex-mounted (`.wf-mounted-view`).
+
+$bp-desktop-min: 641px;
+
+@mixin home-view-host-styles {
+    :where(body):has([data-view="home"]) {
+        margin: 0;
+        min-block-size: 100dvb;
+    }
+
+    /* Typical view demo: `<main id="app">` + direct home root */
+    :where(main, [role="main"]):has(> .view-home.env-home-workspace) {
+        display: flex;
+        flex-direction: column;
+        min-block-size: 100dvb;
+        box-sizing: border-box;
+        border: none;
+        outline: none;
+        box-shadow: none;
+        background: transparent;
+    }
+
+    /* Extra-standalone: `<main>` is the only host (no wf-mounted-view on child) — nothing frames the launcher */
+    :where(main, [role="main"]):has(> .view-home.env-home-workspace:not(.wf-mounted-view)) {
+        max-inline-size: none;
+        margin-inline: 0;
+    }
+
+    /* Backport from environment-shell: grid labels may extend past tile bounds */
+    .env-home-workspace {
+        box-sizing: border-box;
+        overflow: visible;
+    }
+
+    .view-home.env-home-workspace {
+        position: relative;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr);
+        align-items: stretch;
+        justify-items: stretch;
+        inline-size: 100%;
+        min-inline-size: 0;
+        min-block-size: 100dvb;
+        padding: 0;
+        overflow: visible;
+        background: transparent;
+        box-sizing: border-box;
+
+        > .speed-dial-root {
+            position: absolute;
+            inset: 0;
+            inline-size: 100%;
+            block-size: 100%;
+            max-inline-size: 100%;
+            max-block-size: 100%;
+        }
+    }
+
+    /*
+     * Flex / framed mount — parent supplies block size (`env-shell-workspace`, `wf-view-host`).
+     * INVARIANT: `min-block-size: 0` so flex `1fr` tracks do not overflow the shell.
+     */
+    .env-shell-workspace > .view-home.env-home-workspace.wf-mounted-view,
+    .wf-view-host > .view-home.env-home-workspace.wf-mounted-view {
+        margin: 0;
+        margin-inline: 0;
+        max-inline-size: none;
+        flex: 1 1 auto;
+        align-self: stretch;
+        min-block-size: 0;
+        block-size: auto;
+        position: relative;
+        z-index: 0;
+        isolation: isolate;
+        border: none !important;
+        outline: none !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        background: transparent !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+    }
+
+    .env-shell-workspace > .view-home.env-home-workspace.wf-mounted-view > .speed-dial-root,
+    .wf-view-host > .view-home.env-home-workspace.wf-mounted-view > .speed-dial-root {
+        flex: 1 1 auto;
+        min-block-size: 0;
+        block-size: 100%;
+        inline-size: 100%;
+        border-radius: 0 !important;
+        outline: none !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
+
+    /* Fixed bottom chrome (optional): `.env-shell-root` may set `--env-shell-chrome-stack-reserve`. */
+    .env-shell-workspace > .view-home.env-home-workspace.wf-mounted-view {
+        padding-inline-start: env(safe-area-inset-inline-start, 0);
+        padding-inline-end: env(safe-area-inset-inline-end, 0);
+        padding-block-start: env(safe-area-inset-block-start, 0);
+        padding-block-end: env(safe-area-inset-block-end, 0px);
+    }
+
+    .env-shell-root:has(> .env-shell-chrome) .env-shell-workspace > .view-home.env-home-workspace.wf-mounted-view {
+        padding-block-end: calc(
+            var(--env-shell-chrome-stack-reserve, 5.25rem) + env(safe-area-inset-block-end, 0px)
+        );
+    }
+
+    @media (min-width: $bp-desktop-min) {
+        .env-shell-root:has(> .env-shell-chrome) .env-shell-workspace > .view-home.env-home-workspace.wf-mounted-view {
+            padding-block-end: calc(
+                var(--env-shell-chrome-stack-reserve, 7.5rem) + env(safe-area-inset-block-end, 0px)
+            );
+        }
+    }
+
+    /*
+     * Standalone test/demo (no `wf-mounted-view`): full-bleed, no “desk” card — avoid inset borders / shadows
+     * that read as a framed panel (see shared Vite demo on desktop).
+     */
+    .view-home.env-home-workspace:not(.wf-mounted-view) {
+        max-inline-size: none;
+        margin-inline: 0;
+        border-radius: 0 !important;
+        border: none !important;
+        outline: none !important;
+        box-shadow: none !important;
+        background: transparent !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        min-block-size: 100dvb;
+    }
+}

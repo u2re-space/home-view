@@ -2,8 +2,11 @@
 @use "../../../../projects/veela.css/src/scss/index.scss" as *;
 /* WHY: Veela `compute_grid_item_cell` / `compute_orient_grid_layout` reference `--get-oriented-*` CSS functions; they are defined here, not in the Veela barrel. Without this import, `--cs-grid-*` never resolves and every `.ui-ws-item` stacks in cell (1,1). */
 @use "../scss/orientation-functions" as *;
+@use "../scss/home-host" as home-host;
+@use "../scss/launcher-typography" as *;
 
 @layer views {
+    @include home-launcher-typography();
 
     ui-window-frame,
     ui-modal,
@@ -48,6 +51,15 @@
         & > * {
             grid-row: 1 / -1;
             grid-column: 1 / -1;
+        }
+    }
+
+    /* Suppress UA focus ring on orient host (`tabIndex` + programmatic focus for paste). */
+    .speed-dial-root.ui-orientbox {
+        &:focus,
+        &:focus-visible {
+            outline: none !important;
+            box-shadow: none !important;
         }
     }
 
@@ -255,13 +267,22 @@
                 }
 
                 ui-icon {
-                    --icon-size: clamp(1.6rem, 60%, 2.4rem);
-                    /* WHY: Phosphor pipeline reads `--icon-color`; bridge Veela/M3 tokens for light + dark shells. */
+                    /* Phosphor `ui-icon` rasterizes via mask; size tracks the tile, not the overly large grid container. */
+                    --icon-size: clamp(1.65rem, 55%, 2.55rem);
+
+                    /*
+                     * WHY: `--icon-color` is consumed inside `UIPhosphorIcon` shadow; keep contrast on glass tiles.
+                     * Prefer primary on-surface tone so duotone glyphs stay legible on `--color-surface-container` tiles.
+                     */
                     --icon-color: var(
-                        --on-surface-variant,
-                        var(--color-on-surface-variant, var(--on-surface-color, var(--color-on-surface, currentColor)))
+                        --color-on-surface,
+                        var(--on-surface-color, color-mix(in oklch, var(--wf-md-on-surface, white) 88%, transparent))
                     );
                     color: var(--icon-color, currentColor);
+
+                    align-self: center;
+                    justify-self: center;
+                    flex-shrink: 0;
                     aspect-ratio: 1 / 1;
                     max-inline-size: var(--icon-size, 1.8rem);
                     max-block-size: var(--icon-size, 1.8rem);
@@ -274,56 +295,64 @@
                     line-height: 0;
                     z-index: 2;
                     pointer-events: none;
-                    filter: drop-shadow(0 1px 2px #0002);
+                    filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.22));
                 }
             }
 
-            .ui-ws-item-label {
-                position: absolute;
-                inset-inline: 0;
-                inset-block-start: 100%;
-                pointer-events: none;
-                text-align: center;
-                display: flex;
-                justify-content: center;
-                align-items: flex-start;
-                padding-block-start: 0.35rem;
-                color: var(--on-surface-color, currentColor);
-                background: transparent;
-                white-space: nowrap;
-                overflow: visible;
-                filter: none;
-
-                span {
-                    display: inline-flex;
-                    place-content: center;
-                    place-items: center;
-
-                    font-size: 0.72rem;
-                    font-weight: 500;
-                    letter-spacing: 0.01em;
-                    color: color-mix(in oklab, var(--on-surface-color, currentColor) 90%, transparent);
-
-                    white-space: nowrap;
-                    text-overflow: ellipsis;
-                    overflow: hidden;
-                    padding-block: 0.15rem;
-                    padding-inline: 0.4rem;
-                    max-inline-size: min(100%, 9rem);
-                    inline-size: max-content;
-                    border-radius: 6px;
+                .ui-ws-item-label {
+                    position: absolute;
+                    inset-inline: 50% auto;
+                    transform: translateX(-50%);
+                    inset-block-start: 100%;
                     pointer-events: none;
+                    inline-size: min(100%, calc(var(--tile-size, 3.5rem) * 3.2));
+                    max-inline-size: 11.5rem;
                     text-align: center;
-                    line-height: 1.25;
-
-                    text-shadow: 0 1px 4px #0006;
-                    border: none;
+                    display: flex;
+                    justify-content: center;
+                    align-items: flex-start;
+                    padding-block-start: 0.35rem;
+                    color: var(--on-surface-color, currentColor);
                     background: transparent;
-                    backdrop-filter: none;
-                    -webkit-backdrop-filter: none;
-                    box-shadow: none;
+                    overflow: visible;
+                    filter: none;
+
+                    span {
+                        display: inline-block;
+                        max-inline-size: 100%;
+                        vertical-align: top;
+
+                        font-family: inherit;
+                        font-size: clamp(0.68rem, calc(0.095 * var(--tile-size, 3.75rem)), 0.8125rem);
+                        font-weight: 600;
+                        letter-spacing: 0.02em;
+
+                        /*
+                         * WHY: oklab mixes read cleaner on blurred wallpapers vs flat oklch-only in some Chromium builds.
+                         */
+                        color: color-mix(in oklab, var(--color-on-surface, var(--on-surface-color, currentColor)) 94%, transparent);
+
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+
+                        padding-block: 0.12rem 0.2rem;
+                        padding-inline: 0.35rem;
+                        border-radius: 0.4rem;
+                        pointer-events: none;
+                        text-align: center;
+                        line-height: 1.25;
+
+                        text-shadow:
+                            0 1px 2px rgb(0 0 0 / 85%),
+                            0 0 12px rgb(0 0 0 / 35%);
+                        border: none;
+                        background: color-mix(in oklab, rgb(0 0 0) 35%, transparent);
+                        backdrop-filter: blur(10px);
+                        -webkit-backdrop-filter: blur(10px);
+                        box-shadow: none;
+                    }
                 }
-            }
 
             &:active {
                 will-change: transform;
@@ -701,6 +730,8 @@
             opacity: 0.6;
         }
     }
+
+    @include home-host.home-view-host-styles();
 
     /* Base/minimal shell home should behave as desktop grid host. */
     .view-home--grid {

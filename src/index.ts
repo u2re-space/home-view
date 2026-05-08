@@ -1,3 +1,5 @@
+/* Registers `ui-icon` (UIPhosphorIcon) for launcher tiles. */
+import "fest/icon";
 import type { BaseViewOptions, ShellContext, View, ViewLifecycle, ViewOptions } from "views/types";
 import { initializeOrientedDesktop } from "./ts/OrientDesktop";
 import { setHomeOverlayMountResolver, setSpeedDialViewOpener } from "./ts/view-opener";

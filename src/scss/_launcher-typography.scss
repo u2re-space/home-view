@@ -1,0 +1,31 @@
+// Launcher / SpeedDial typography (system stack — no separate font files required).
+// Optional host override: set `--home-font-sans` on `:root`, `.view-home`, or `.speed-dial-root`.
+
+@mixin home-launcher-typography {
+    .speed-dial-root.app-oriented-desktop,
+    .speed-dial-root {
+        --home-font-sans:
+            system-ui,
+            -apple-system,
+            "Segoe UI",
+            Roboto,
+            "Noto Sans",
+            "Helvetica Neue",
+            Arial,
+            "Apple Color Emoji",
+            "Segoe UI Emoji",
+            sans-serif;
+
+        font-family: var(--home-font-sans);
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        text-rendering: optimizeLegibility;
+
+        /*
+         * `ui-orientbox` can set `pointer-events: none`; label text still inherits these for metrics
+         * when painted from the caption layer.
+         */
+        font-kerning: normal;
+        font-variant-numeric: tabular-nums;
+    }
+}

@@ -592,10 +592,11 @@ export const initializeOrientedDesktop = (host: HTMLElement): void => {
                     iconElement?.remove();
                     if (existingImage) {
                         existingImage.src = domIconSrc;
+                        existingImage.alt = item.label ? String(item.label) : "";
                     } else {
                         const image = document.createElement("img");
                         image.className = "ui-ws-item-icon-image";
-                        image.alt = "";
+                        image.alt = item.label ? String(item.label) : "";
                         image.loading = "lazy";
                         image.decoding = "async";
                         image.referrerPolicy = "no-referrer";
@@ -607,8 +608,10 @@ export const initializeOrientedDesktop = (host: HTMLElement): void => {
                     if (existingImage) existingImage.remove();
                     if (!iconElement) {
                         iconElement = document.createElement("ui-icon");
+                        iconElement.setAttribute("icon-style", "duotone");
                         iconShape.appendChild(iconElement);
                     }
+                    iconElement.setAttribute("icon-style", "duotone");
                     iconElement.setAttribute("icon", item.icon || "sparkle");
                 }
             }
@@ -674,7 +677,7 @@ export const initializeOrientedDesktop = (host: HTMLElement): void => {
         if (mountIconSrc) {
             const image = document.createElement("img");
             image.className = "ui-ws-item-icon-image";
-            image.alt = "";
+            image.alt = item.label ? String(item.label) : "";
             image.loading = "lazy";
             image.decoding = "async";
             image.referrerPolicy = "no-referrer";
@@ -683,6 +686,7 @@ export const initializeOrientedDesktop = (host: HTMLElement): void => {
             icon.appendChild(image);
         } else {
             const iconElement = document.createElement("ui-icon");
+            iconElement.setAttribute("icon-style", "duotone");
             iconElement.setAttribute("icon", item.icon || "sparkle");
             icon.appendChild(iconElement);
         }

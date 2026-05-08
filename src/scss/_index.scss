@@ -3,3 +3,5 @@
 @use "./orientbox" as *;
 @use "./gridbox" as *;
 @use "./speed-dial" as *;
+@forward "./home-host";
+@forward "./launcher-typography";
