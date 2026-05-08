@@ -1,6 +1,6 @@
 import type { BaseViewOptions, ShellContext, View, ViewLifecycle, ViewOptions } from "views/types";
 import { initializeOrientedDesktop } from "./ts/OrientDesktop";
-import { setSpeedDialViewOpener } from "./ts/view-opener";
+import { setHomeOverlayMountResolver, setSpeedDialViewOpener } from "./ts/view-opener";
 import { resolveOpenViewTarget } from "./ts/action-registry";
 
 export type HomeViewOptions = BaseViewOptions;
@@ -19,6 +19,7 @@ export class HomeView implements View {
     lifecycle: ViewLifecycle = {
         onUnmount: () => {
             setSpeedDialViewOpener(null);
+            setHomeOverlayMountResolver(null);
             this.element = null;
         }
     };
@@ -576,6 +577,12 @@ export class HomeView implements View {
         setSpeedDialViewOpener((viewId, params) => {
             this.dispatchShellRoute(viewId, { params } as ViewOptions);
         });
+
+        setHomeOverlayMountResolver(
+            typeof this.shellContext?.resolveOverlayMountPoint === "function"
+                ? (anchor) => this.shellContext!.resolveOverlayMountPoint!(anchor)
+                : null
+        );
 
         initializeOrientedDesktop(root);
 

@@ -28,7 +28,7 @@ import {
 } from "./launcher-state";
 import { isInFocus, MOCElement } from "fest/dom";
 import { openShortcutEditor } from "./ShortcutEditor";
-import { setSpeedDialViewOpener, getSpeedDialViewOpener } from "./view-opener";
+import { setSpeedDialViewOpener, getSpeedDialViewOpener, getHomeOverlayMountResolver } from "./view-opener";
 import { getSpeedDialActionRegistry, getSpeedDialActionLabels, getSpeedDialActionIcons } from "./action-registry";
 let ctxMenuBound = false;
 let persistItemsTimer: ReturnType<typeof setTimeout> | null = null;
@@ -735,7 +735,9 @@ export function createCtxMenu(makeView?: any) {
                 x: event.clientX,
                 y: event.clientY,
                 items: menuItems,
-                compact: true
+                compact: true,
+                anchor: event.target instanceof Element ? event.target : null,
+                resolveOverlayMountPoint: getHomeOverlayMountResolver() ?? undefined
             });
         }, { capture: true });
     }

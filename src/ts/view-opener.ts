@@ -15,3 +15,16 @@ export function setSpeedDialViewOpener(opener: SpeedDialViewOpener | null): void
 export function getSpeedDialViewOpener(): SpeedDialViewOpener | null {
     return viewOpener;
 }
+
+/** Resolved from `shellContext.resolveOverlayMountPoint` while home is mounted (context menus above `.wf-frame`). */
+export type OverlayMountResolver = (anchor?: Element | null) => HTMLElement;
+
+let overlayMountResolver: OverlayMountResolver | null = null;
+
+export function setHomeOverlayMountResolver(fn: OverlayMountResolver | null): void {
+    overlayMountResolver = typeof fn === "function" ? fn : null;
+}
+
+export function getHomeOverlayMountResolver(): OverlayMountResolver | null {
+    return overlayMountResolver;
+}

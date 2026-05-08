@@ -33,7 +33,7 @@ import {
     type ContextMenuEntry,
     openUnifiedContextMenu
 } from "../../../explorer-view/src/ts/ContextMenu";
-import { getSpeedDialViewOpener } from "./view-opener";
+import { getSpeedDialViewOpener, getHomeOverlayMountResolver } from "./view-opener";
 import {
     MARKDOWN_VIEW_MANAGED_WINDOW_KEY
 } from "../../../../shells/window-frame/src/views/markdown-view-window";
@@ -1113,7 +1113,9 @@ export const initializeOrientedDesktop = (host: HTMLElement): void => {
             x: event.clientX,
             y: event.clientY,
             items: entries,
-            compact: true
+            compact: true,
+            anchor: event.target instanceof Element ? event.target : null,
+            resolveOverlayMountPoint: getHomeOverlayMountResolver() ?? undefined
         });
     };
 
