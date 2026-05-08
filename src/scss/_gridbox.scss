@@ -77,19 +77,20 @@
         }
 
         //
+        /* WHY: Exclude launcher label captions (`[data-layer="labels"]`) — `aspect-ratio: 1/1` on `span` mis-sizes ellipsis pills. */
+        .ui-ws-item:not([data-layer="labels"]) span {
+            pointer-events: none;
+            aspect-ratio: 1 / 1;
+            inline-size: fit-content;
+            block-size: fit-content;
+            display: inline;
+        }
+
         .ui-ws-item {
             cursor: pointer;
             user-select: none;
             pointer-events: auto;
-    
-            span {
-                pointer-events: none;
-                aspect-ratio: 1 / 1;
-                inline-size: fit-content;
-                block-size: fit-content;
-                display: inline;
-            }
-    
+
             &:active,
             &:has(:active) {
                 will-change: inset, translate, transform, opacity, z-index;
