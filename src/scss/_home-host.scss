@@ -24,8 +24,34 @@ $bp-desktop-min: 641px;
         background: transparent;
     }
 
+    /*
+     * Environment shell: `#app` may be `<env-shell-container>` — `#home` sits under `.env-shell-workspace`,
+     * not as a direct child of the main landmark.
+     */
+    :where(env-shell-container:is([role="main"], #app)):has(
+            .env-shell-workspace > .view-home.env-home-workspace,
+            .env-shell-workspace > .env-shell-home-mount > .view-home.env-home-workspace
+        ) {
+        display: flex;
+        flex-direction: column;
+        min-block-size: 100dvb;
+        box-sizing: border-box;
+        border: none;
+        outline: none;
+        box-shadow: none;
+        background: transparent;
+    }
+
     /* Extra-standalone: `<main>` is the only host (no wf-mounted-view on child) — nothing frames the launcher */
     :where(main, [role="main"]):has(> .view-home.env-home-workspace:not(.wf-mounted-view)) {
+        max-inline-size: none;
+        margin-inline: 0;
+    }
+
+    :where(env-shell-container:is([role="main"], #app)):has(
+            .env-shell-workspace > .view-home.env-home-workspace:not(.wf-mounted-view),
+            .env-shell-workspace > .env-shell-home-mount > .view-home.env-home-workspace:not(.wf-mounted-view)
+        ) {
         max-inline-size: none;
         margin-inline: 0;
     }
@@ -66,6 +92,7 @@ $bp-desktop-min: 641px;
      * INVARIANT: `min-block-size: 0` so flex `1fr` tracks do not overflow the shell.
      */
     .env-shell-workspace > .view-home.env-home-workspace.wf-mounted-view,
+    .env-shell-workspace > .env-shell-home-mount > .view-home.env-home-workspace.wf-mounted-view,
     .wf-view-host > .view-home.env-home-workspace.wf-mounted-view {
         margin: 0;
         margin-inline: 0;
@@ -87,6 +114,7 @@ $bp-desktop-min: 641px;
     }
 
     .env-shell-workspace > .view-home.env-home-workspace.wf-mounted-view > .speed-dial-root,
+    .env-shell-workspace > .env-shell-home-mount > .view-home.env-home-workspace.wf-mounted-view > .speed-dial-root,
     .wf-view-host > .view-home.env-home-workspace.wf-mounted-view > .speed-dial-root {
         flex: 1 1 auto;
         min-block-size: 0;
@@ -99,21 +127,30 @@ $bp-desktop-min: 641px;
     }
 
     /* Fixed bottom chrome (optional): `.env-shell-root` may set `--env-shell-chrome-stack-reserve`. */
-    .env-shell-workspace > .view-home.env-home-workspace.wf-mounted-view {
+    .env-shell-workspace > .view-home.env-home-workspace.wf-mounted-view,
+    .env-shell-workspace > .env-shell-home-mount > .view-home.env-home-workspace.wf-mounted-view {
         padding-inline-start: env(safe-area-inset-inline-start, 0);
         padding-inline-end: env(safe-area-inset-inline-end, 0);
         padding-block-start: env(safe-area-inset-block-start, 0);
         padding-block-end: env(safe-area-inset-block-end, 0px);
     }
 
-    .env-shell-root:has(> .env-shell-chrome) .env-shell-workspace > .view-home.env-home-workspace.wf-mounted-view {
+    .env-shell-root:has(> .env-shell-chrome) .env-shell-workspace > .view-home.env-home-workspace.wf-mounted-view,
+    .env-shell-root:has(> .env-shell-chrome)
+        .env-shell-workspace
+        > .env-shell-home-mount
+        > .view-home.env-home-workspace.wf-mounted-view {
         padding-block-end: calc(
             var(--env-shell-chrome-stack-reserve, 5.25rem) + env(safe-area-inset-block-end, 0px)
         );
     }
 
     @media (min-width: $bp-desktop-min) {
-        .env-shell-root:has(> .env-shell-chrome) .env-shell-workspace > .view-home.env-home-workspace.wf-mounted-view {
+        .env-shell-root:has(> .env-shell-chrome) .env-shell-workspace > .view-home.env-home-workspace.wf-mounted-view,
+        .env-shell-root:has(> .env-shell-chrome)
+            .env-shell-workspace
+            > .env-shell-home-mount
+            > .view-home.env-home-workspace.wf-mounted-view {
             padding-block-end: calc(
                 var(--env-shell-chrome-stack-reserve, 7.5rem) + env(safe-area-inset-block-end, 0px)
             );
