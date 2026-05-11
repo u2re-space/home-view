@@ -99,8 +99,7 @@ const DEFAULT_STATE: DesktopState = {
     items: [
         { id: "viewer", label: "Markdown", icon: "article", viewId: "viewer", cell: [0, 0], action: "open-view", shape: "squircle" },
         { id: "explorer", label: "Explorer", icon: "books", viewId: "explorer", cell: [1, 0], action: "open-view", shape: "squircle" },
-        { id: "settings", label: "Settings", icon: "gear-six", viewId: "settings", cell: [2, 0], action: "open-view", shape: "squircle" },
-        { id: "airpad", label: "AirPad", icon: "paper-plane-tilt", viewId: "airpad", cell: [3, 0], action: "open-view", shape: "squircle" }
+        { id: "settings", label: "Settings", icon: "gear-six", viewId: "settings", cell: [2, 0], action: "open-view", shape: "squircle" }
     ]
 };
 
@@ -435,7 +434,7 @@ const resolveDesktopShellViewId = (raw: string | undefined | null, fallback: str
 
 /** See `markdown-view-window.ts`: primary id is {@link MARKDOWN_VIEW_MANAGED_WINDOW_KEY}; label “Markdown”. */
 const DESKTOP_SHELL_VIEW_OPTIONS = (
-    [MARKDOWN_VIEW_MANAGED_WINDOW_KEY, "explorer", "settings", "airpad", "workcenter", "history", "editor"] as const
+    [MARKDOWN_VIEW_MANAGED_WINDOW_KEY, "explorer", "settings", "workcenter", "history", "editor"] as const
 ).map((viewId) => ({ value: viewId, label: prettifyView(viewId) }));
 
 
