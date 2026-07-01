@@ -36,7 +36,7 @@ import {
 import { getSpeedDialViewOpener, getHomeOverlayMountResolver } from "./view-opener";
 import {
     MARKDOWN_VIEW_MANAGED_WINDOW_KEY
-} from "../../../../shells/window-frame/src/views/markdown-view-window";
+} from "../../../window-frame/src/views/markdown-view-window";
 import { resolveOpenViewTarget } from "./action-registry";
 import { navigate } from "fest/lure";
 

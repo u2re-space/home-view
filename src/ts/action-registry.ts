@@ -15,7 +15,7 @@ import { getSpeedDialViewOpener } from "./view-opener";
 import {
     MARKDOWN_VIEW_MANAGED_WINDOW_KEY,
     normalizeMarkdownViewWindowId
-} from "../../../../shells/window-frame/src/views/markdown-view-window";
+} from "../../../window-frame/src/views/markdown-view-window";
 
 /**
  * Resolve speed-dial / shortcut `meta.view` and desktop `viewId` strings to a canonical `ViewId`.
