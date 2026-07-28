@@ -1,5 +1,5 @@
 /**
- * Lightweight toasts for home-view / SpeedDial (no CrossWord core).
+ * Lightweight toasts for home-view / SpeedDial (no CWSP-shell core).
  * Shells may listen for `view:toast` on `window` and render FL-UI / status UI.
  */
 export function showSuccess(message: string): void {

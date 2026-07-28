@@ -425,7 +425,13 @@
                 transition:
                     transform var(--drag-settle-ms, 240ms) cubic-bezier(0.22, 0.8, 0.3, 1);
 
-                /* WHY: Anchors captions to cell bottom-under-icon; avoid 1×1 sizing and avoid min-height spacer boxes. */
+                /*
+                 * WHY: Icons use place-self:center in tall grid cells. Anchoring labels to
+                 * `end` put captions at the cell floor → huge icon↔label gaps. Keep captions
+                 * centered with the icon, then nudge just under the tile via `translate`
+                 * (separate from drag `transform`).
+                 */
+                --sd-label-gap: 0.18rem;
                 aspect-ratio: auto;
                 display: block;
                 inline-size: var(--tile-size);
@@ -434,7 +440,8 @@
                 block-size: auto;
                 min-block-size: 0;
                 max-block-size: none;
-                place-self: end center;
+                place-self: center;
+                translate: 0 calc((var(--tile-size) * 0.5) + var(--sd-label-gap));
 
                 .ui-ws-item-label {
                     background: transparent !important;
@@ -445,11 +452,15 @@
                     inline-size: max-content;
                     max-inline-size: min(calc(var(--tile-size, 3.5rem) * 2.65), min(92dvi, 9.5rem));
                     margin-inline: auto;
-                    padding-block-start: 0.12rem;
+                    padding-block-start: 0;
                 }
 
                 .ui-ws-item-label span {
                     pointer-events: none !important;
+                }
+
+                &[data-label-placement="above"] {
+                    translate: 0 calc((var(--tile-size) * -0.5) - var(--sd-label-gap) - 1.1em);
                 }
             }
 

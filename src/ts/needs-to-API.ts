@@ -38,7 +38,7 @@ export class HomeView implements View {
         this.element = H`
             <div class="view-home" data-view="home">
                 <header class="view-home__header">
-                    <h1 class="view-home__title">CrossWord</h1>
+                    <h1 class="view-home__title">CWSP-shell</h1>
                     <p class="view-home__subtitle">Pick a workspace to continue.</p>
                 </header>
                 <nav class="view-home__nav" aria-label="Quick open">

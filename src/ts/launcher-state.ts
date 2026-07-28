@@ -1,6 +1,6 @@
 /**
  * Speed-dial / launcher persistence for fl.ui only (no core).
- * Storage keys match CrossWord `StateStorage` so shells sharing one origin keep one grid.
+ * Storage keys match CWSP-shell `StateStorage` so shells sharing one origin keep one grid.
  */
 
 import { makeObjectAssignable, observe, stringRef, safe } from "fest/object";
@@ -40,12 +40,10 @@ export interface SpeedDialItem {
 
 export const NAVIGATION_SHORTCUTS = [
     { view: "home", label: "Home", icon: "house-line" },
+    { view: "network", label: "Network", icon: "wifi-high" },
     { view: "viewer", label: "Markdown", icon: "article" },
-    { view: "task", label: "Plan", icon: "calendar-dots" },
-    { view: "event", label: "Events", icon: "calendar-star" },
-    { view: "bonus", label: "Bonuses", icon: "ticket" },
-    { view: "person", label: "Contacts", icon: "address-book" },
     { view: "explorer", label: "Explorer", icon: "books" },
+    { view: "history", label: "History", icon: "clock-counter-clockwise" },
     { view: "settings", label: "Settings", icon: "gear-six" }
 ] as const;
 
@@ -127,6 +125,14 @@ const EXTERNAL_SHORTCUTS: SpeedDialPersistedItem[] = [
 
 const DEFAULT_SPEED_DIAL_DATA: SpeedDialPersistedItem[] = [
     {
+        id: "shortcut-network",
+        cell: observe([0, 0]),
+        icon: "wifi-high",
+        label: "Network",
+        action: "open-view",
+        meta: { view: "network" }
+    },
+    {
         id: "shortcut-explorer",
         cell: observe([2, 0]),
         icon: "books",
@@ -141,6 +147,22 @@ const DEFAULT_SPEED_DIAL_DATA: SpeedDialPersistedItem[] = [
         label: "Settings",
         action: "open-view",
         meta: { view: "settings" }
+    },
+    {
+        id: "shortcut-viewer",
+        cell: observe([1, 0]),
+        icon: "article",
+        label: "Markdown",
+        action: "open-view",
+        meta: { view: "viewer" }
+    },
+    {
+        id: "shortcut-history",
+        cell: observe([0, 1]),
+        icon: "clock-counter-clockwise",
+        label: "History",
+        action: "open-view",
+        meta: { view: "history" }
     },
     ...EXTERNAL_SHORTCUTS
 ];
