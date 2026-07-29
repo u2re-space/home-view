@@ -1,3 +1,9 @@
+/*
+ * Filename: OrientDesktop.ts
+ * FullPath: modules/views/home-view/src/ts/OrientDesktop.ts
+ * Change date and time: 13.28.00_29.07.2026
+ * Reason for changes: Paste/drop place at nearest free cell under last pointer / drop point.
+ */
 import { loadAsAdopted, getCorrectOrientation, orientationNumberMap } from "fest/dom";
 import type { GridItemType } from "fest/core";
 import { bindInteraction, resolveGridCellFromClientPoint } from "./Interact";
@@ -74,6 +80,9 @@ const SUPPRESS_CLICK_MS = 280;
 const ITEM_ENVELOPE_KIND = "cw-speed-dial-item";
 const REGISTRY_ENVELOPE_KIND = "cw-speed-dial-registry";
 const URL_PATTERN = /(https?:\/\/[^\s<>"']+)/i;
+/** Bare host or host/path without scheme (github.com, www.youtube.com/watch?v=1). */
+const BARE_HOST_PATTERN =
+    /^(?:www\.)?(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}(?:[/:?#][^\s]*)?$/i;
 const ACTION_OPTIONS: Array<{ value: DesktopAction; label: string }> = [
     { value: "open-view", label: "Open view" },
     { value: "open-link", label: "Open link" }
@@ -251,23 +260,28 @@ const applyWallpaperFromFile = async (file: File): Promise<boolean> => {
 const parseUrlFromText = (text: string): URL | null => {
     const value = String(text || "").trim();
     if (!value) return null;
-    const direct = (() => {
+    const asHttp = (candidate: string): URL | null => {
         try {
-            return new URL(value);
+            const parsed = new URL(candidate);
+            if (!/^https?:$/i.test(parsed.protocol)) return null;
+            return parsed;
         } catch {
             return null;
         }
-    })();
-    if (direct && /^https?:$/i.test(direct.protocol)) return direct;
+    };
+
+    const direct = asHttp(value);
+    if (direct) return direct;
+
+    // WHY: users paste/drop bare domains from messengers ("github.com") without scheme.
+    if (!/\s/.test(value) && BARE_HOST_PATTERN.test(value)) {
+        const bare = asHttp(`https://${value.replace(/^\/+/, "")}`);
+        if (bare) return bare;
+    }
+
     const match = value.match(URL_PATTERN);
     if (!match?.[1]) return null;
-    try {
-        const parsed = new URL(match[1]);
-        if (!/^https?:$/i.test(parsed.protocol)) return null;
-        return parsed;
-    } catch {
-        return null;
-    }
+    return asHttp(match[1]);
 };
 
 const parseUrlFromHtml = (html: string): URL | null => {
@@ -275,14 +289,37 @@ const parseUrlFromHtml = (html: string): URL | null => {
     if (!content) return null;
     try {
         const doc = new DOMParser().parseFromString(content, "text/html");
-        const href = doc.querySelector("a[href]")?.getAttribute("href") || "";
+        const href = String(doc.querySelector("a[href]")?.getAttribute("href") || "").trim();
         if (!href) return null;
+        // WHY: relative hrefs resolve to the shell origin and create bogus tiles; require absolute http(s).
+        if (!/^https?:\/\//i.test(href) && !href.startsWith("//")) return null;
         const parsed = new URL(href, window.location.href);
         if (!/^https?:$/i.test(parsed.protocol)) return null;
         return parsed;
     } catch {
         return null;
     }
+};
+
+/** Collect unique http(s) URLs from plain / uri-list text (multi-line aware). */
+const extractHttpUrlsFromText = (text: string): URL[] => {
+    const out: URL[] = [];
+    const seen = new Set<string>();
+    const push = (url: URL | null): void => {
+        if (!url) return;
+        const key = url.href;
+        if (seen.has(key)) return;
+        seen.add(key);
+        out.push(url);
+    };
+    const raw = String(text || "");
+    const lines = raw
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line && !line.startsWith("#"));
+    for (const line of lines) push(parseUrlFromText(line));
+    if (!out.length) push(parseUrlFromText(raw));
+    return out;
 };
 
 const createLinkItem = (url: URL, cell: [number, number], labelHint = ""): DesktopItem => {
@@ -298,12 +335,6 @@ const createLinkItem = (url: URL, cell: [number, number], labelHint = ""): Deskt
         href: url.href,
         shape: "squircle"
     };
-};
-
-const parseUrlItemFromText = (text: string, cell: [number, number]): DesktopItem | null => {
-    const parsed = parseUrlFromText(text);
-    if (!parsed) return null;
-    return createLinkItem(parsed, cell);
 };
 
 const normalizeImportedItems = (
@@ -356,6 +387,14 @@ const parseItemsFromTextPayload = (
             // ignore parse errors and continue with URL heuristics
         }
     }
+
+    // WHY: prefer plain/uri-list http(s) over HTML — HTML often carries relative/site chrome links.
+    const fromPlain = extractHttpUrlsFromText(plain);
+    if (fromPlain.length) {
+        // Place all at preferredCell; `addItems` / findNearestFreeCell fans out from the cursor.
+        return fromPlain.map((url) => createLinkItem(url, preferredCell));
+    }
+
     const htmlUrl = parseUrlFromHtml(html);
     if (htmlUrl) {
         const labelHint = (() => {
@@ -369,8 +408,7 @@ const parseItemsFromTextPayload = (
         })();
         return [createLinkItem(htmlUrl, preferredCell, labelHint)];
     }
-    const plainItem = parseUrlItemFromText(plain, preferredCell);
-    return plainItem ? [plainItem] : [];
+    return [];
 };
 
 const itemsForStoragePayload = (items: DesktopItem[]): DesktopItem[] =>
@@ -461,8 +499,12 @@ export const initializeOrientedDesktop = (host: HTMLElement): void => {
     desktopRoot.style.display = "grid";
     desktopRoot.tabIndex = 0;
 
+    // WHY: CSS grid placement reads `--orient`; JS hit-test (`orientOf`) reads attr / `.orient`.
+    // INVARIANT: keep attr, property, and CSS var in lockstep (same as `fixOrientToScreen`).
     const syncDesktopOrient = (): void => {
         const n = orientationNumberMap?.[getCorrectOrientation()] ?? 0;
+        (desktopRoot as HTMLElement & { orient?: number }).orient = n;
+        desktopRoot.setAttribute("orient", String(n));
         desktopRoot.style.setProperty("--orient", String(n));
     };
     syncDesktopOrient();
@@ -553,16 +595,18 @@ export const initializeOrientedDesktop = (host: HTMLElement): void => {
     };
     const addItems = (items: DesktopItem[], preferredCell: [number, number]): number => {
         let added = 0;
+        // WHY: every new tile prefers the same cursor cell; findNearestFreeCell fans out to neighbors.
+        const anchor = clampCell(preferredCell, state.columns, state.rows);
         for (let index = 0; index < items.length; index += 1) {
             const incoming = items[index];
             if (!incoming) continue;
             const item = normalizeItem({
                 ...incoming,
                 id: incoming.id || createDesktopItemId("item"),
-                cell: incoming.cell || [preferredCell[0], preferredCell[1] + index]
+                cell: anchor
             }, state.columns, state.rows);
             if (!item || itemById.has(item.id)) continue;
-            item.cell = findNearestFreeCell(item.cell, occupiedSet(), state.columns, state.rows);
+            item.cell = findNearestFreeCell(anchor, occupiedSet(), state.columns, state.rows);
             state.items.push(item);
             itemById.set(item.id, item);
             itemIdList.push(item.id);
@@ -600,7 +644,15 @@ export const initializeOrientedDesktop = (host: HTMLElement): void => {
                         image.decoding = "async";
                         image.referrerPolicy = "no-referrer";
                         image.src = domIconSrc;
-                        image.addEventListener("error", () => image.remove());
+                        image.addEventListener("error", () => {
+                            image.remove();
+                            if (!iconShape.querySelector("ui-icon")) {
+                                const fallback = document.createElement("ui-icon");
+                                fallback.setAttribute("icon-style", "duotone");
+                                fallback.setAttribute("icon", item.icon || "link");
+                                iconShape.appendChild(fallback);
+                            }
+                        });
                         iconShape.insertBefore(image, iconShape.firstChild);
                     }
                 } else {
@@ -673,6 +725,13 @@ export const initializeOrientedDesktop = (host: HTMLElement): void => {
         icon.className = "ui-ws-item-icon shaped";
         icon.dataset.shape = normalizeTileShape(item.shape);
         const mountIconSrc = expandIconSrcForDom(item.iconSrc || "");
+        const mountGlyph = (): void => {
+            if (icon.querySelector("ui-icon")) return;
+            const iconElement = document.createElement("ui-icon");
+            iconElement.setAttribute("icon-style", "duotone");
+            iconElement.setAttribute("icon", item.icon || "link");
+            icon.appendChild(iconElement);
+        };
         if (mountIconSrc) {
             const image = document.createElement("img");
             image.className = "ui-ws-item-icon-image";
@@ -681,13 +740,14 @@ export const initializeOrientedDesktop = (host: HTMLElement): void => {
             image.decoding = "async";
             image.referrerPolicy = "no-referrer";
             image.src = mountIconSrc;
-            image.addEventListener("error", () => image.remove());
+            // WHY: Google s2 favicon can 404/CORS-fail — keep a glyph so the tile is not blank.
+            image.addEventListener("error", () => {
+                image.remove();
+                mountGlyph();
+            });
             icon.appendChild(image);
         } else {
-            const iconElement = document.createElement("ui-icon");
-            iconElement.setAttribute("icon-style", "duotone");
-            iconElement.setAttribute("icon", item.icon || "sparkle");
-            icon.appendChild(iconElement);
+            mountGlyph();
         }
         el.appendChild(icon);
         return el;
@@ -1122,30 +1182,103 @@ export const initializeOrientedDesktop = (host: HTMLElement): void => {
         });
     };
 
+    // WHY: ClipboardEvent has no reliable clientX/Y — track last pointer over the desktop for paste placement.
+    let lastPointerClient: [number, number] | null = null;
+    const trackPointerClient = (event: PointerEvent | MouseEvent | DragEvent): void => {
+        if (typeof event.clientX !== "number" || typeof event.clientY !== "number") return;
+        lastPointerClient = [event.clientX, event.clientY];
+    };
+    const preferredCellFromPointer = (fallback?: [number, number] | null): [number, number] => {
+        if (lastPointerClient) return guessCellFromPoint(lastPointerClient[0], lastPointerClient[1]);
+        if (fallback) return clampCell(fallback, state.columns, state.rows);
+        return [0, 0];
+    };
+
     const handlePaste = async (event: ClipboardEvent): Promise<void> => {
         const image = readImageFileFromClipboard(event);
         if (image) {
             event.preventDefault();
             event.stopPropagation();
+            event.stopImmediatePropagation?.();
             await applyWallpaperFromFile(image);
             return;
         }
 
         const plain = event.clipboardData?.getData("text/plain") || "";
         const html = event.clipboardData?.getData("text/html") || "";
-        const items = parseItemsFromTextPayload(plain, html, state.columns, state.rows, [0, 0]);
+        const uriList = event.clipboardData?.getData("text/uri-list") || "";
+        const merged = [uriList, plain].filter(Boolean).join("\n").trim();
+        // INVARIANT: paste lands at nearest free cell under last mouse position (not always [0,0]).
+        const cellHint = preferredCellFromPointer();
+        const items = parseItemsFromTextPayload(merged, html, state.columns, state.rows, cellHint);
         if (!items.length) return;
 
         event.preventDefault();
         event.stopPropagation();
-        addItems(items, [0, 0]);
+        event.stopImmediatePropagation?.();
+        addItems(items, cellHint);
     };
 
-    desktopRoot.addEventListener("pointerdown", () => desktopRoot.focus());
-    desktopRoot.addEventListener("dragover", (event) => {
-        event.preventDefault();
+    /** True when paste should create a desktop link (not steal from inputs/editors). */
+    const isDesktopPasteContext = (event: Event): boolean => {
+        const active = document.activeElement as HTMLElement | null;
+        if (
+            active &&
+            active !== desktopRoot &&
+            active !== host &&
+            !desktopRoot.contains(active) &&
+            (active.tagName === "INPUT" ||
+                active.tagName === "TEXTAREA" ||
+                active.tagName === "SELECT" ||
+                active.isContentEditable)
+        ) {
+            return false;
+        }
+        const target = event.target as Node | null;
+        if (target && (desktopRoot.contains(target) || host.contains(target) || target === desktopRoot || target === host)) {
+            return true;
+        }
+        if (active && (active === desktopRoot || active === host || desktopRoot.contains(active) || host.contains(active))) {
+            return true;
+        }
+        try {
+            if (desktopRoot.matches(":hover") || host.matches(":hover")) return true;
+        } catch { /* noop */ }
+        return false;
+    };
+
+    const onDocumentPaste = (event: ClipboardEvent): void => {
+        if (!host.isConnected) return;
+        if (!isDesktopPasteContext(event)) return;
+        void handlePaste(event);
+    };
+
+    desktopRoot.addEventListener("pointerdown", (event) => {
+        trackPointerClient(event);
+        desktopRoot.focus({ preventScroll: true });
     });
-    desktopRoot.addEventListener("drop", async (event) => {
+    host.addEventListener("pointerdown", (event) => {
+        trackPointerClient(event);
+        if (document.activeElement !== desktopRoot) desktopRoot.focus({ preventScroll: true });
+    });
+    desktopRoot.addEventListener("pointermove", trackPointerClient, { passive: true });
+    host.addEventListener("pointermove", trackPointerClient, { passive: true });
+    desktopRoot.addEventListener("dragover", (event) => {
+        trackPointerClient(event);
+        event.preventDefault();
+        try {
+            if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+        } catch { /* noop */ }
+    });
+    host.addEventListener("dragover", (event) => {
+        trackPointerClient(event);
+        event.preventDefault();
+        try {
+            if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+        } catch { /* noop */ }
+    });
+    const handleDrop = async (event: DragEvent): Promise<void> => {
+        trackPointerClient(event);
         const file = pickDroppedImageFile(event);
         if (file) {
             event.preventDefault();
@@ -1156,24 +1289,42 @@ export const initializeOrientedDesktop = (host: HTMLElement): void => {
         const plain = event.dataTransfer?.getData("text/plain") || "";
         const html = event.dataTransfer?.getData("text/html") || "";
         const uriList = event.dataTransfer?.getData("text/uri-list") || "";
-        const merged = [uriList, plain].filter(Boolean).join("\n").trim();
-        let items = parseItemsFromTextPayload(merged, html, state.columns, state.rows, [0, 0]);
+        // COMPAT: Firefox tab/bookmark drops.
+        const mozUrl = event.dataTransfer?.getData("text/x-moz-url") || "";
+        const merged = [uriList, mozUrl, plain].filter(Boolean).join("\n").trim();
+        // INVARIANT: drop under cursor → nearest free cell from that hit.
+        const dropCell = preferredCellFromPointer(guessCellFromPoint(event.clientX, event.clientY));
+        let items = parseItemsFromTextPayload(merged, html, state.columns, state.rows, dropCell);
         if (!items.length) {
             const droppedTextFile = Array.from(event.dataTransfer?.files || [])
                 .find((entry) => entry.type === "text/plain" || entry.type === "text/html");
             if (droppedTextFile) {
                 const payload = await droppedTextFile.text();
-                items = parseItemsFromTextPayload(payload, droppedTextFile.type === "text/html" ? payload : "", state.columns, state.rows, [0, 0]);
+                items = parseItemsFromTextPayload(
+                    payload,
+                    droppedTextFile.type === "text/html" ? payload : "",
+                    state.columns,
+                    state.rows,
+                    dropCell
+                );
             }
         }
         if (!items.length) return;
         event.preventDefault();
         event.stopPropagation();
-        addItems(items, [0, 0]);
+        addItems(items, dropCell);
+    };
+    desktopRoot.addEventListener("drop", (event) => {
+        void handleDrop(event);
+    });
+    host.addEventListener("drop", (event) => {
+        void handleDrop(event);
     });
     desktopRoot.addEventListener("paste", (event) => {
         void handlePaste(event);
     });
+    // WHY: Ctrl+V often targets document/body when focus is not on tabIndex desktopRoot.
+    document.addEventListener("paste", onDocumentPaste, true);
 
     desktopRoot.addEventListener("contextmenu", (event) => {
         event.preventDefault();

@@ -75,7 +75,8 @@
 
         grid-row: 1 / -1;
         grid-column: 1 / -1;
-        padding: var(--padding-lg);
+        /* WHY: Large desktop padding warps mobile cell hit-test (content box ≪ border box). */
+        padding: clamp(0.4rem, 2.5cqmin, var(--padding-lg));
 
         &[data-grid-columns="4"] { --grid-cols: 4; }
         &[data-grid-columns="5"] { --grid-cols: 5; }

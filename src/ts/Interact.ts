@@ -139,6 +139,8 @@ export const makeDragEvents = async (
     }
 ) => {
     let settleTimer: ReturnType<typeof setTimeout> | null = null;
+    // WHY: On touch, tile center after transform can lag; drop must use last pointer client.
+    let lastPointerClient: [number, number] | null = null;
 
     const setState = (state: InteractionState, coord: CoordinateState): void => {
         newItem.dataset.interactionState = state;
@@ -158,6 +160,21 @@ export const makeDragEvents = async (
         return layout;
     };
 
+    const onPointerTrack = (ev: Event): void => {
+        const pe = ev as PointerEvent & { holding?: { client?: number[] }; event?: PointerEvent };
+        const client = pe?.holding?.client;
+        if (Array.isArray(client) && client.length >= 2) {
+            lastPointerClient = [Number(client[0]) || 0, Number(client[1]) || 0];
+            return;
+        }
+        const src = pe?.event ?? pe;
+        if (typeof src?.clientX === "number" && typeof src?.clientY === "number") {
+            lastPointerClient = [src.clientX, src.clientY];
+        }
+    };
+    newItem.addEventListener("m-dragging", onPointerTrack as EventListener);
+    newItem.addEventListener("pointermove", onPointerTrack as EventListener);
+
     const computeDropCell = (): [number, number] | null => {
         const grid = newItem?.parentElement as HTMLElement | null;
         if (!grid) return null;
@@ -165,9 +182,16 @@ export const makeDragEvents = async (
         const args = { layout: { columns: snap[0], rows: snap[1] }, item, list, items };
 
         const gridRect = grid.getBoundingClientRect();
-        const itemRect = newItem.getBoundingClientRect();
-        const cx = (itemRect.left + itemRect.right) / 2;
-        const cy = (itemRect.top + itemRect.bottom) / 2;
+        let cx: number;
+        let cy: number;
+        if (lastPointerClient) {
+            [cx, cy] = lastPointerClient;
+        } else {
+            // Fallback: tile center after transform (desktop / missed pointer track).
+            const itemRect = newItem.getBoundingClientRect();
+            cx = (itemRect.left + itemRect.right) / 2;
+            cy = (itemRect.top + itemRect.bottom) / 2;
+        }
         if (cx < gridRect.left || cx > gridRect.right || cy < gridRect.top || cy > gridRect.bottom) return null;
         return resolveGridCellFromClientPoint(grid, [cx, cy], args, "floor");
     };
@@ -198,6 +222,7 @@ export const makeDragEvents = async (
     // ── Drag Start ──
     const onGrab = (dragRefs: [any, any]): [number, number] => {
         clearSettleTimer();
+        lastPointerClient = null;
 
         // Anchor to current cell (prevents grab-teleport).
         const stableCell: [number, number] = [
@@ -227,8 +252,9 @@ export const makeDragEvents = async (
     const onDrop = (_dragRefs: any): [number, number] => {
         clearSettleTimer();
 
-        // 1. Compute destination cell synchronously.
+        // 1. Compute destination cell synchronously (prefer last pointer, not lagged tile center).
         const cell = computeDropCell();
+        lastPointerClient = null;
 
         requestAnimationFrame(async () => {
             // 2. Anchor --p-cell to where item WAS (animation start point).

@@ -135,14 +135,13 @@ $bp-desktop-min: 641px;
         padding-block-end: env(safe-area-inset-block-end, 0px);
     }
 
+    /* NOTE: `--env-shell-chrome-stack-reserve` already includes mobile safe-area via root; avoid double-adding. */
     .env-shell-root:has(> .env-shell-chrome) .env-shell-workspace > .view-home.env-home-workspace.wf-mounted-view,
     .env-shell-root:has(> .env-shell-chrome)
         .env-shell-workspace
         > .env-shell-home-mount
         > .view-home.env-home-workspace.wf-mounted-view {
-        padding-block-end: calc(
-            var(--env-shell-chrome-stack-reserve, 5.25rem) + env(safe-area-inset-block-end, 0px)
-        );
+        padding-block-end: var(--env-shell-chrome-stack-reserve, 3rem);
     }
 
     @media (min-width: $bp-desktop-min) {
