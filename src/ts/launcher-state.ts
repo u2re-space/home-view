@@ -5,6 +5,7 @@
 
 import { makeObjectAssignable, observe, stringRef, safe } from "fest/object";
 import { makeUIState } from "fest/lure";
+import { isEnabledView } from "core/routing/core/views";
 
 export type GridCell = [number, number];
 
@@ -38,7 +39,7 @@ export interface SpeedDialItem {
     action: string;
 }
 
-export const NAVIGATION_SHORTCUTS = [
+const NAVIGATION_SHORTCUTS_ALL = [
     { view: "home", label: "Home", icon: "house-line" },
     { view: "network", label: "Network", icon: "wifi-high" },
     { view: "viewer", label: "Markdown", icon: "article" },
@@ -46,6 +47,11 @@ export const NAVIGATION_SHORTCUTS = [
     { view: "history", label: "History", icon: "clock-counter-clockwise" },
     { view: "settings", label: "Settings", icon: "gear-six" }
 ] as const;
+
+/** WHY: document PWA disables Network at build time — hide it from add-shortcut menus too. */
+export const NAVIGATION_SHORTCUTS = NAVIGATION_SHORTCUTS_ALL.filter((shortcut) =>
+    isEnabledView(shortcut.view)
+);
 
 const STORAGE_KEY = "cw::workspace::speed-dial";
 const META_STORAGE_KEY = `${STORAGE_KEY}::meta`;
@@ -123,7 +129,7 @@ const EXTERNAL_SHORTCUTS: SpeedDialPersistedItem[] = [
     }
 ];
 
-const DEFAULT_SPEED_DIAL_DATA: SpeedDialPersistedItem[] = [
+const DEFAULT_SPEED_DIAL_DATA_ALL: SpeedDialPersistedItem[] = [
     {
         id: "shortcut-network",
         cell: observe([0, 0]),
@@ -166,6 +172,21 @@ const DEFAULT_SPEED_DIAL_DATA: SpeedDialPersistedItem[] = [
     },
     ...EXTERNAL_SHORTCUTS
 ];
+
+/** Drop view shortcuts that this host build disabled (e.g. Network on CWSP-document). */
+const isSpeedDialViewAllowed = (
+    meta?: SpeedDialItemMeta,
+    id?: string
+): boolean => {
+    if (id === "shortcut-network" && !isEnabledView("network")) return false;
+    const view = String(meta?.view || "").trim();
+    if (!view) return true;
+    return isEnabledView(view);
+};
+
+const DEFAULT_SPEED_DIAL_DATA: SpeedDialPersistedItem[] = DEFAULT_SPEED_DIAL_DATA_ALL.filter((entry) =>
+    isSpeedDialViewAllowed(entry.meta, entry.id)
+);
 
 const splitDefaultEntries = (entries: SpeedDialPersistedItem[]) => {
     const records: SpeedDialRecord[] = [];
@@ -276,7 +297,10 @@ const createStatefulItem = (config: SpeedDialRecord): SpeedDialItem => {
 
 const createInitialState = () => observe(DEFAULT_SPEED_DIAL_RECORDS.map(createStatefulItem));
 const unpackState = (raw?: SpeedDialPersistedItem[]) => {
-    const source = Array.isArray(raw) && raw.length ? raw : DEFAULT_SPEED_DIAL_DATA;
+    // WHY: strip persisted Network (etc.) tiles when this host build disabled the view.
+    const source = (Array.isArray(raw) && raw.length ? raw : DEFAULT_SPEED_DIAL_DATA).filter((entry) =>
+        isSpeedDialViewAllowed(entry.meta, entry.id)
+    );
     const records = source.map((entry) => {
         const { meta, ...record } = entry;
         if (meta) {
