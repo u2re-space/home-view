@@ -60,6 +60,7 @@ $bp-desktop-min: 641px;
     .env-home-workspace {
         box-sizing: border-box;
         overflow: visible;
+        pointer-events: none;
     }
 
     .view-home.env-home-workspace {
@@ -76,14 +77,16 @@ $bp-desktop-min: 641px;
         overflow: visible;
         background: transparent;
         box-sizing: border-box;
+        pointer-events: none;
 
-        > .speed-dial-root {
+        & > .speed-dial-root {
             position: absolute;
             inset: 0;
             inline-size: 100%;
             block-size: 100%;
             max-inline-size: 100%;
             max-block-size: 100%;
+            pointer-events: none;
         }
     }
 
