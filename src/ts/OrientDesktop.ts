@@ -1,8 +1,8 @@
 /*
  * Filename: OrientDesktop.ts
  * FullPath: modules/views/home-view/src/ts/OrientDesktop.ts
- * Change date and time: 13.28.00_29.07.2026
- * Reason for changes: Paste/drop place at nearest free cell under last pointer / drop point.
+ * Change date and time: 16.58.00_30.07.2026
+ * Reason for changes: Tile under as grid sibling of `.ui-ws-item` (CSS-anchor + geometrySource).
  */
 import { loadAsAdopted, getCorrectOrientation, orientationNumberMap } from "fest/dom";
 import type { GridItemType } from "fest/core";
@@ -13,7 +13,9 @@ import {
     loadDesktopRaw,
     decodeDesktopState,
     persistDesktopMain,
-    persistDesktopDraft
+    persistDesktopDraft,
+    createShapedTileShadow,
+    type UnderlyingShadow
 } from "fest/lure";
 import {
     compactIconSrcForStorage,
@@ -566,6 +568,8 @@ export const initializeOrientedDesktop = (host: HTMLElement): void => {
     let suppressClickUntil = 0;
     const iconNodeById = new Map<string, HTMLElement>();
     const labelNodeById = new Map<string, HTMLElement>();
+    /** WHY: glass tiles keep `backdrop-filter`; elevation lives on shaped under-siblings. */
+    const iconUnderById = new Map<string, UnderlyingShadow>();
     const escapeHtml = (value: string): string => String(value || "").replace(/[&<>"']/g, (char) => ({
         "&": "&amp;",
         "<": "&lt;",
@@ -778,6 +782,8 @@ export const initializeOrientedDesktop = (host: HTMLElement): void => {
         const listIndex = itemIdList.indexOf(itemId);
         if (listIndex >= 0) itemIdList.splice(listIndex, 1);
 
+        iconUnderById.get(itemId)?.destroy();
+        iconUnderById.delete(itemId);
         iconNodeById.get(itemId)?.remove();
         labelNodeById.get(itemId)?.remove();
         iconNodeById.delete(itemId);
@@ -800,6 +806,13 @@ export const initializeOrientedDesktop = (host: HTMLElement): void => {
             iconShape.style.pointerEvents = "auto";
             iconShape.style.touchAction = "none";
         }
+
+        // WHY: under is a preceding sibling of `.ui-ws-item` in the grid (DOM children ≈ 2× items).
+        // Attach after connect so observeConnect / CSS-anchor bind against the live grid host.
+        iconUnderById.set(
+            item.id,
+            createShapedTileShadow(iconNode, { geometrySource: iconShape })
+        );
 
         bindInteraction(iconNode, {
             layout: [state.columns, state.rows],

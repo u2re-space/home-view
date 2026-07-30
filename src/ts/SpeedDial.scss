@@ -194,11 +194,10 @@
                 filter 180ms var(--ease-out, ease-out);
 
             &:hover {
-                scale: 1.06;
+                scale: 1;
 
                 .ui-ws-item-icon {
                     background: color-mix(in oklab, var(--color-surface-container-high, #1f2937) 60%, transparent);
-                    box-shadow: 0 10px 36px -10px color-mix(in oklab, #000 40%, transparent);
                 }
             }
 
@@ -224,13 +223,14 @@
 
             .ui-ws-item-icon {
                 display: grid;
-                transition: background-color 200ms ease, box-shadow 200ms ease;
+                transition: background-color 200ms ease;
                 grid-column: 1 / -1;
                 grid-row: 1 / -1;
                 aspect-ratio: 1 / 1;
 
                 pointer-events: auto;
                 position: relative;
+                z-index: 1;
                 text-align: center;
                 place-content: center;
                 place-items: center;
@@ -249,7 +249,8 @@
 
                 background: color-mix(in oklab, var(--color-surface-container, #111827) 56%, transparent);
                 border: none;
-                box-shadow: 0 6px 24px -8px color-mix(in oklab, #000 38%, transparent);
+                /* WHY: box-shadow on backdrop-filter host is flattened — elevation on `.ui-ws-item-icon-under`. */
+                box-shadow: none;
                 backdrop-filter: blur(16px) saturate(1.2);
                 -webkit-backdrop-filter: blur(16px) saturate(1.2);
                 filter: none;
@@ -482,6 +483,28 @@
             &[data-layer="icons"][data-interaction-state="onRelax"] {
                 z-index: 120;
             }
+        }
+
+        /* Grid-level under siblings of `.ui-ws-item` (DOM children ≈ 2× icons). */
+        & > .ui-ws-item-icon-under.underlying-shadow-container,
+        & > .ui-ws-item-icon-under {
+            background-color: transparent !important;
+            pointer-events: none !important;
+            overflow: visible !important;
+            z-index: 0 !important;
+            /* WHY: CSS-anchor abspos must not consume a grid auto-placement cell. */
+            grid-column: unset !important;
+            grid-row: unset !important;
+            filter: blur(12px) !important;
+        }
+
+        & > .ui-ws-item-icon-under .underlying-shadow-geometry {
+            background: #000000af !important;
+            transition: filter 200ms ease, box-shadow 200ms ease;
+        }
+
+        & > .ui-ws-item-icon-under:has(+ .ui-ws-item:hover) .underlying-shadow-geometry {
+            filter: blur(8px) !important;
         }
     }
 

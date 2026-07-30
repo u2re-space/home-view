@@ -1,5 +1,5 @@
 import { observe, numberRef, propRef, stringRef, affected } from "fest/object";
-import { E, H, orientRef, M, provide, handleIncomingEntries } from "fest/lure";
+import { E, H, orientRef, M, provide, handleIncomingEntries, createShapedTileShadow } from "fest/lure";
 import { pointerAnchorRef } from "fest/lure";
 import { bindInteraction, resolveGridCellFromClientPoint } from "./Interact";
 import { showSuccess, showError } from "./toast";
@@ -210,6 +210,11 @@ const attachItemNode = (item: SpeedDialItem, el?: HTMLElement | null, interactiv
                 "--layout-r": propRef(layout, 1)
             }
         });
+        // WHY: under is a grid sibling of `.ui-ws-item`, CSS-anchored; shape from `.ui-ws-item-icon`.
+        if (!el.dataset.underShadow) {
+            el.dataset.underShadow = "1";
+            createShapedTileShadow(el);
+        }
     }
 };
 
