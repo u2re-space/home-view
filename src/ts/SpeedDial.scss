@@ -47,6 +47,12 @@
         background-color: transparent;
         overflow: hidden;
         border-radius: 0px;
+        user-select: none;
+        user-drag: none;
+        -webkit-user-drag: none;
+        -webkit-user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: none;
 
         & > * {
             grid-row: 1 / -1;
@@ -77,6 +83,12 @@
         grid-column: 1 / -1;
         /* WHY: Large desktop padding warps mobile cell hit-test (content box ≪ border box). */
         padding: clamp(0.4rem, 2.5cqmin, var(--padding-lg));
+        user-select: none;
+        user-drag: none;
+        -webkit-user-drag: none;
+        -webkit-user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: none;
 
         &[data-grid-columns="4"] { --grid-cols: 4; }
         &[data-grid-columns="5"] { --grid-cols: 5; }
@@ -138,7 +150,9 @@
             background: transparent !important;
             pointer-events: none !important;
             isolation: isolate;
+            /* WHY: layout contain is fine; avoid paint/size contain so wide captions can overflow cells. */
             contain: layout style;
+            overflow: visible;
         }
 
         .ui-ws-item {
@@ -320,12 +334,16 @@
                     transform: translateX(-50%);
                     inset-block-start: 100%;
                     pointer-events: none;
+                    /* WHY: host may be tile-narrow; label itself carries the wider measure for centering. */
                     inline-size: max-content;
-                    max-inline-size: min(calc(var(--tile-size, 3.5rem) * 2.65), min(92dvi, 9.5rem));
+                    max-inline-size: var(
+                        --sd-label-max,
+                        min(calc(var(--tile-size, 3.5rem) * 2.85), min(94dvi, 10.5rem))
+                    );
                     text-align: center;
-                    display: flex;
-                    justify-content: center;
-                    align-items: flex-start;
+                    display: grid;
+                    justify-items: center;
+                    align-items: start;
                     padding-block-start: 0.2rem;
                     color: var(--on-surface-color, currentColor);
                     background: transparent;
@@ -333,10 +351,11 @@
                     filter: none;
 
                     span {
-                        display: inline-block;
+                        display: block;
                         aspect-ratio: auto;
+                        inline-size: auto;
                         max-inline-size: 100%;
-                        vertical-align: top;
+                        box-sizing: border-box;
 
                         font-family: inherit;
                         font-size: clamp(0.65rem, calc(0.088 * var(--tile-size, 3.75rem)), 0.78rem);
@@ -357,7 +376,8 @@
                         border-radius: 999px;
                         pointer-events: none;
                         text-align: center;
-                        line-height: 1.1;
+                        line-height: 1.15;
+                        margin-inline: auto;
 
                         text-shadow:
                             0 1px 2px rgb(0 0 0 / 85%),
@@ -424,21 +444,25 @@
                 filter: none;
                 background: transparent !important;
                 pointer-events: none !important;
+                overflow: visible;
                 transition:
                     transform var(--drag-settle-ms, 240ms) cubic-bezier(0.22, 0.8, 0.3, 1);
 
                 /*
-                 * WHY: Icons use place-self:center in tall grid cells. Anchoring labels to
-                 * `end` put captions at the cell floor → huge icon↔label gaps. Keep captions
-                 * centered with the icon, then nudge just under the tile via `translate`
-                 * (separate from drag `transform`).
+                 * WHY: Icons use place-self:center in tall grid cells. Captions sit just under the
+                 * tile via `translate` (separate from drag `transform`). Host width uses
+                 * `--sd-label-max` (not tile-size) so long titles can center + ellipsize instead of
+                 * clipping against a tile-narrow box.
                  */
-                --sd-label-gap: 0.18rem;
+                --sd-label-gap: 0.42rem;
+                --sd-label-max: min(calc(var(--tile-size, 3.5rem) * 2.85), min(94dvi, 10.5rem));
                 aspect-ratio: auto;
-                display: block;
-                inline-size: var(--tile-size);
-                min-inline-size: var(--tile-size);
-                max-inline-size: var(--tile-size);
+                display: grid;
+                justify-items: center;
+                align-items: start;
+                inline-size: var(--sd-label-max);
+                min-inline-size: var(--sd-label-max);
+                max-inline-size: var(--sd-label-max);
                 block-size: auto;
                 min-block-size: 0;
                 max-block-size: none;
@@ -451,18 +475,30 @@
                     position: relative;
                     inset: unset;
                     transform: none;
-                    inline-size: max-content;
-                    max-inline-size: min(calc(var(--tile-size, 3.5rem) * 2.65), min(92dvi, 9.5rem));
-                    margin-inline: auto;
+                    inline-size: 100%;
+                    max-inline-size: 100%;
+                    margin-inline: 0;
                     padding-block-start: 0;
+                    display: grid;
+                    justify-items: center;
+                    text-align: center;
+                    overflow: visible;
                 }
 
                 .ui-ws-item-label span {
                     pointer-events: none !important;
+                    display: block;
+                    inline-size: auto;
+                    max-inline-size: 100%;
+                    margin-inline: auto;
+                    text-align: center;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
                 }
 
                 &[data-label-placement="above"] {
-                    translate: 0 calc((var(--tile-size) * -0.5) - var(--sd-label-gap) - 1.1em);
+                    translate: 0 calc((var(--tile-size) * -0.5) - var(--sd-label-gap) - 1.15em);
                 }
             }
 

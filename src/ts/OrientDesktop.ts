@@ -1,10 +1,10 @@
 /*
  * Filename: OrientDesktop.ts
  * FullPath: modules/views/home-view/src/ts/OrientDesktop.ts
- * Change date and time: 16.58.00_30.07.2026
- * Reason for changes: Tile under as grid sibling of `.ui-ws-item` (CSS-anchor + geometrySource).
+ * Change date and time: 17.32.00_30.07.2026
+ * Reason for changes: Desktop + wallpaper orient via whenAnyScreenChanges (matchMedia + resize).
  */
-import { loadAsAdopted, getCorrectOrientation, orientationNumberMap } from "fest/dom";
+import { loadAsAdopted, getCorrectOrientation, orientationNumberMap, whenAnyScreenChanges } from "fest/dom";
 import type { GridItemType } from "fest/core";
 import { bindInteraction, resolveGridCellFromClientPoint } from "./Interact";
 
@@ -35,7 +35,7 @@ import {
 import speedDialViewStyles from "./SpeedDial.scss?inline";
 // Registers `data-mixin="ui-orientbox"` (container-type / --orient wiring).
 import "./OrientBox";
-import { setAppWallpaper } from "../../misc/Canvas-2";
+import { setAppWallpaper, syncAppWallpaperOrient } from "../../misc/Canvas-2";
 import {
     closeUnifiedContextMenu,
     type ContextMenuEntry,
@@ -503,15 +503,18 @@ export const initializeOrientedDesktop = (host: HTMLElement): void => {
 
     // WHY: CSS grid placement reads `--orient`; JS hit-test (`orientOf`) reads attr / `.orient`.
     // INVARIANT: keep attr, property, and CSS var in lockstep (same as `fixOrientToScreen`).
+    // WHY: `whenAnyScreenChanges` also covers matchMedia portrait/landscape (window resize on desk),
+    // not only `screen.orientation.change` (which often does not fire on desktop window chrome).
     const syncDesktopOrient = (): void => {
         const n = orientationNumberMap?.[getCorrectOrientation()] ?? 0;
         (desktopRoot as HTMLElement & { orient?: number }).orient = n;
         desktopRoot.setAttribute("orient", String(n));
         desktopRoot.style.setProperty("--orient", String(n));
+        // Keep app wallpaper canvas cover-rotate in sync with the same orient source.
+        syncAppWallpaperOrient();
     };
     syncDesktopOrient();
-    screen.orientation?.addEventListener?.("change", syncDesktopOrient);
-    window.addEventListener("resize", syncDesktopOrient);
+    whenAnyScreenChanges(syncDesktopOrient);
 
 
     // Two stacks: `data-grid-layer` controls z-index (see SpeedDial.scss). BEM --labels/--icons are swapped vs
