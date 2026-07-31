@@ -6,5 +6,9 @@ export {
     setAppWallpaper,
     syncAppWallpaperOrient,
     syncCanvasOrient,
-    type CanvasLayerState
+    applyThemeFromWallpaper,
+    applyWallpaperThemeSeeds,
+    restoreWallpaperThemeCache,
+    type CanvasLayerState,
+    type WallpaperThemeSeeds,
 } from "fest/image";
