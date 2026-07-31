@@ -572,7 +572,8 @@
     .speed-dial-editor {
         position: fixed;
         inset: 0;
-        z-index: 1200;
+        /* WHY: env chrome / overlays use ~2.147e9 — 1200 left the editor invisible under the shell. */
+        z-index: 2147483646;
         display: grid;
         place-items: center;
         background: color-mix(in oklab, #020617 58%, transparent);

@@ -1,4 +1,14 @@
+/*
+ * Filename: ShortcutEditor.ts
+ * FullPath: modules/views/home-view/src/ts/ShortcutEditor.ts
+ * Change date and time: 11.15.00_31.07.2026
+ * Reason for changes: Mount above env chrome (z-index) so Create/Edit Shortcut works in deploy.
+ */
 import { registerModal } from "fest/lure";
+import { getHomeOverlayMountResolver } from "./view-opener";
+
+/** Above `$z-shell-chrome` / context-menu layer so the form is visible and clickable. */
+const SHORTCUT_EDITOR_Z = "2147483646";
 
 export type ShortcutActionOption = {
     value: string;
@@ -213,5 +223,13 @@ export const openShortcutEditor = (options: ShortcutEditorOptions): void => {
     if (registerForBackNavigation) {
         unregisterBackNav = registerModal(modal, undefined, closeModal);
     }
-    document.body.append(modal);
+    // WHY: body alone is under `.env-shell-chrome` (z≈2.147e9); prefer overlay slot + inline z.
+    modal.style.setProperty("position", "fixed", "important");
+    modal.style.setProperty("inset", "0", "important");
+    modal.style.setProperty("z-index", SHORTCUT_EDITOR_Z, "important");
+    const mount =
+        (typeof getHomeOverlayMountResolver === "function"
+            ? getHomeOverlayMountResolver()?.(null)
+            : null) ?? document.body;
+    mount.append(modal);
 };
