@@ -134,7 +134,8 @@ $bp-desktop-min: 641px;
     .env-shell-workspace > .env-shell-home-mount > .view-home.env-home-workspace.wf-mounted-view {
         padding-inline-start: env(safe-area-inset-inline-start, 0);
         padding-inline-end: env(safe-area-inset-inline-end, 0);
-        padding-block-start: env(safe-area-inset-block-start, 0);
+        /* Prefer overlay status inset when present (covers notch); else safe-area only. */
+        padding-block-start: var(--env-status-inset-top, env(safe-area-inset-block-start, 0));
         padding-block-end: env(safe-area-inset-block-end, 0px);
     }
 
