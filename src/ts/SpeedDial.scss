@@ -596,19 +596,48 @@
     }
 
     .speed-dial-editor__form {
+        /* WHY: concrete ink — late/broken --color-on-surface was white on cream fields. */
+        --sd-editor-ink: #e8eef8;
+        --sd-editor-muted: color-mix(in oklab, #e8eef8 72%, transparent);
+        --sd-editor-field-bg: #101827;
+        --sd-editor-field-ink: #e8eef8;
+        --sd-editor-panel: color-mix(in oklab, #0b1220 92%, #000);
+        --sd-editor-border: color-mix(in oklab, #94a3b8 35%, transparent);
+        --sd-editor-danger-bg: #7f1d1d;
+        --sd-editor-danger-ink: #fff7f7;
+        color-scheme: dark;
         inline-size: min(100%, 980px);
         margin-inline: auto;
         border-radius: 18px;
         border: none;
-        background: color-mix(in oklab, var(--color-surface, #0b1220) 88%, #000);
-        color: var(--color-on-surface, #e2e8f0);
+        background: var(--sd-editor-panel);
+        color: var(--sd-editor-ink);
         display: grid;
         grid-template-rows: auto minmax(0, 1fr) auto;
         max-block-size: min(86vh, 760px);
         overflow: hidden;
         box-shadow:
             0 24px 64px -28px color-mix(in oklab, #000 65%, transparent),
-            0 0 0 1px color-mix(in oklab, var(--color-outline-variant, #334155) 35%, transparent) inset;
+            0 0 0 1px color-mix(in oklab, var(--sd-editor-border) 55%, transparent) inset;
+    }
+
+    html[data-theme="light"] .speed-dial-editor__form,
+    .speed-dial-editor[data-theme="light"] .speed-dial-editor__form,
+    .speed-dial-editor__form[data-theme="light"] {
+        color-scheme: light only;
+        --sd-editor-ink: #1a2332;
+        --sd-editor-muted: color-mix(in oklab, #1a2332 72%, transparent);
+        --sd-editor-field-bg: #f3eee4;
+        --sd-editor-field-ink: #1a2332;
+        --sd-editor-panel: #faf6ef;
+        --sd-editor-border: color-mix(in oklab, #1a2332 18%, transparent);
+        --sd-editor-danger-bg: #9f1239;
+        --sd-editor-danger-ink: #fff7f7;
+        background: var(--sd-editor-panel);
+        color: var(--sd-editor-ink);
+        box-shadow:
+            0 18px 48px -24px color-mix(in oklab, #0f172a 28%, transparent),
+            0 0 0 1px var(--sd-editor-border) inset;
     }
 
     .speed-dial-editor__form .modal-header {
@@ -616,7 +645,7 @@
         gap: 0.4rem;
         padding: 1rem 1rem 0.75rem;
         border-block-end: none;
-        box-shadow: 0 1px 0 color-mix(in oklab, var(--color-outline-variant, #334155) 28%, transparent);
+        box-shadow: 0 1px 0 var(--sd-editor-border);
     }
 
     .speed-dial-editor__form .modal-title {
@@ -624,13 +653,14 @@
         font-size: 1.2rem;
         font-weight: 650;
         line-height: 1.25;
+        color: var(--sd-editor-ink);
     }
 
     .speed-dial-editor__form .modal-description {
         margin: 0;
         font-size: 0.86rem;
         line-height: 1.35;
-        color: color-mix(in oklab, var(--color-on-surface, #e2e8f0) 72%, transparent);
+        color: var(--sd-editor-muted);
     }
 
     .speed-dial-editor__form .modal-fields {
@@ -649,19 +679,24 @@
 
     .speed-dial-editor__form .modal-field > span {
         font-size: 0.84rem;
-        color: color-mix(in oklab, var(--color-on-surface, #e2e8f0) 76%, transparent);
+        color: var(--sd-editor-muted);
     }
 
     .speed-dial-editor__form :is(input, select, textarea) {
         inline-size: 100%;
         min-inline-size: 0;
         border-radius: 8px;
-        border: 1px solid color-mix(in oklab, var(--color-outline-variant, #334155) 75%, transparent);
-        background: color-mix(in oklab, var(--color-surface-container-low, #101827) 88%, transparent);
-        color: var(--color-on-surface, #e2e8f0);
+        border: 1px solid var(--sd-editor-border);
+        background: var(--sd-editor-field-bg);
+        color: var(--sd-editor-field-ink);
+        caret-color: var(--sd-editor-field-ink);
         padding: 0.55rem 0.7rem;
         outline: none;
         appearance: none;
+    }
+
+    .speed-dial-editor__form :is(input, select, textarea)::placeholder {
+        color: color-mix(in oklab, var(--sd-editor-field-ink) 45%, transparent);
     }
 
     .speed-dial-editor__form textarea {
@@ -680,8 +715,8 @@
         justify-content: space-between;
         gap: 0.5rem;
         padding: 0.75rem 1rem;
-        border-block-start: 1px solid color-mix(in oklab, var(--color-outline-variant, #334155) 64%, transparent);
-        background: color-mix(in oklab, var(--color-surface-container, #172032) 42%, transparent);
+        border-block-start: 1px solid var(--sd-editor-border);
+        background: color-mix(in oklab, var(--sd-editor-field-bg) 55%, transparent);
     }
 
     .speed-dial-editor__form :is(.modal-actions-left, .modal-actions-right) {
@@ -692,29 +727,36 @@
 
     .speed-dial-editor__form .btn {
         border-radius: 8px;
-        border: 1px solid color-mix(in oklab, var(--color-outline-variant, #334155) 72%, transparent);
+        border: 1px solid var(--sd-editor-border);
         padding: 0.46rem 0.86rem;
         font-size: 0.86rem;
         line-height: 1.2;
         cursor: pointer;
-        color: var(--color-on-surface, #e2e8f0);
-        background: color-mix(in oklab, var(--color-surface-container, #172032) 62%, transparent);
+        color: var(--sd-editor-ink);
+        background: color-mix(in oklab, var(--sd-editor-field-bg) 80%, transparent);
     }
 
     .speed-dial-editor__form .btn.secondary {
-        background: color-mix(in oklab, var(--color-surface-container, #172032) 48%, transparent);
+        background: color-mix(in oklab, var(--sd-editor-field-bg) 65%, transparent);
     }
 
     .speed-dial-editor__form .btn.save {
         border-color: color-mix(in oklab, var(--color-primary, #3b82f6) 60%, transparent);
-        background: color-mix(in oklab, var(--color-primary, #3b82f6) 40%, #0b1220);
+        background: color-mix(in oklab, var(--color-primary, #3b82f6) 55%, #0b1220);
+        color: #fff;
+    }
+
+    html[data-theme="light"] .speed-dial-editor__form .btn.save,
+    .speed-dial-editor[data-theme="light"] .speed-dial-editor__form .btn.save,
+    .speed-dial-editor__form[data-theme="light"] .btn.save {
+        background: color-mix(in oklab, var(--color-primary, #2563eb) 78%, #0f172a);
         color: #fff;
     }
 
     .speed-dial-editor__form .btn.danger {
-        border-color: color-mix(in oklab, var(--color-error, #ef4444) 64%, transparent);
-        background: color-mix(in oklab, var(--color-error, #ef4444) 28%, #1f0a0a);
-        color: #fff;
+        border-color: color-mix(in oklab, var(--sd-editor-danger-bg) 70%, transparent);
+        background: var(--sd-editor-danger-bg);
+        color: var(--sd-editor-danger-ink);
     }
 
     .speed-dial-editor__form .btn:hover {

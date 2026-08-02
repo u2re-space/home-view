@@ -69,7 +69,13 @@ export class HomeView implements View {
         root.id = "home";
 
         setSpeedDialViewOpener((viewId, params) => {
-            this.dispatchShellRoute(viewId, { params } as ViewOptions);
+            const p = { ...(params || {}) };
+            const native = String(p.native || "");
+            /* WHY: Open link / mono apps pass native=1 → Windows2 WCO (not a nested env desktop). */
+            this.dispatchShellRoute(viewId, {
+                ...(native === "1" || native === "true" ? { native: "1" } : {}),
+                params: p
+            } as ViewOptions);
         });
 
         setHomeOverlayMountResolver(

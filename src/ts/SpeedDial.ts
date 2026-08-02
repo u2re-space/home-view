@@ -5,6 +5,12 @@ import { bindInteraction, resolveGridCellFromClientPoint } from "./Interact";
 import { showSuccess, showError } from "./toast";
 import { openUnifiedContextMenu, type ContextMenuEntry } from "../explorer/ContextMenu";
 import {
+    setAppWallpaperFromBlob,
+    resolveAppWallpaperUrl,
+    getWallpaperStoragePointer,
+    WALLPAPER_IDB_MARKER
+} from "../../misc/Canvas-2";
+import {
     speedDialMeta,
     speedDialItems,
     createEmptySpeedDialItem,
@@ -16,6 +22,9 @@ import {
     findSpeedDialItem,
     getSpeedDialMeta,
     ensureSpeedDialMeta,
+    resolveSpeedDialItemHref,
+    resolveItemOpenLinkTarget,
+    getDefaultOpenLinkTarget,
     NAVIGATION_SHORTCUTS,
     wallpaperState,
     persistWallpaper,
@@ -116,17 +125,22 @@ const bindCell = (el: HTMLElement, args: any) => {
 };
 
 //
-const runItemAction = (item: SpeedDialItem, actionId?: string, extras: { event?: Event; initiator?: HTMLElement } = {}, makeView?: any) => {
+const runItemAction = (
+    item: SpeedDialItem,
+    actionId?: string,
+    extras: { event?: Event; initiator?: HTMLElement; openLinkTarget?: string } = {},
+    makeView?: any
+) => {
     const resolvedAction = resolveItemAction(item, actionId);
     const action = getSpeedDialActionRegistry().get(resolvedAction);
     if (!action) { showError("Action is unavailable"); return; }
-    //const $meta = getSpeedDialMeta(item.id);
     const context = {
         id: item.id,
         items: speedDialItems,
         meta: speedDialMeta,
         action: resolvedAction,
-        viewMaker: makeView
+        viewMaker: makeView,
+        ...(extras.openLinkTarget ? { openLinkTarget: extras.openLinkTarget } : {})
     };
     try {
         action(context as any, item, extras?.initiator);
@@ -282,11 +296,30 @@ const createMenuEntryForAction = (actionId: string, item: SpeedDialItem, fallbac
 export function makeWallpaper() {
     const oRef = orientRef();
     const srcRef = stringRef(DEFAULT_WALLPAPER_SRC);
-    affected([wallpaperState, "src"], (s) => provide("/user" + (s?.src || (typeof s == "string" ? s : null)))
-        ?.then?.(blob => (srcRef.value = URL.createObjectURL(blob)))
-        ?.catch?.(() => {
-            srcRef.value = DEFAULT_WALLPAPER_SRC;
-        }) || DEFAULT_WALLPAPER_SRC);
+    const applySrc = (paintUrl: string) => {
+        srcRef.value = paintUrl || DEFAULT_WALLPAPER_SRC;
+    };
+    /* WHY: custom wallpapers are IDB-backed (`idb:rs-wallpaper`); blob: URLs must not be persisted. */
+    affected([wallpaperState, "src"], (s) => {
+        const raw = String(s?.src || (typeof s == "string" ? s : "") || "").trim();
+        if (!raw || raw === WALLPAPER_IDB_MARKER || raw.startsWith("idb:") || raw.startsWith("blob:")) {
+            void resolveAppWallpaperUrl().then(applySrc).catch(() => applySrc(DEFAULT_WALLPAPER_SRC));
+            return;
+        }
+        if (raw.startsWith("/") && !raw.startsWith("/user")) {
+            /* Asset / app path — paint directly; also try OPFS under /user for user copies. */
+            applySrc(raw);
+            void provide("/user" + raw)
+                ?.then?.(blob => applySrc(URL.createObjectURL(blob)))
+                ?.catch?.(() => { /* keep asset path */ });
+            return;
+        }
+        void provide(raw.startsWith("/user") ? raw : "/user" + raw)
+            ?.then?.(blob => applySrc(URL.createObjectURL(blob)))
+            ?.catch?.(() => {
+                void resolveAppWallpaperUrl().then(applySrc).catch(() => applySrc(DEFAULT_WALLPAPER_SRC));
+            });
+    });
     const CE = H`<canvas slot="backdrop" style="position: absolute; pointer-events: none; min-inline-size: 0px; min-block-size: 0px; inline-size: stretch; block-size: stretch; max-block-size: stretch; max-inline-size: stretch; transform: none; scale: 1; inset: 0; pointer-events: none;" data-orient=${oRef} is="ui-canvas" data-src=${srcRef}></canvas>`;
     return CE;
 }
@@ -300,8 +333,8 @@ const pickWallpaper = () => {
         const file = input.files?.[0];
         if (!file) return;
         try {
-            const url = URL.createObjectURL(file);
-            wallpaperState.src = url;
+            await setAppWallpaperFromBlob(file);
+            wallpaperState.src = getWallpaperStoragePointer() || WALLPAPER_IDB_MARKER;
             persistWallpaper();
             showSuccess("Wallpaper updated");
         } catch (e) {
@@ -391,12 +424,18 @@ const handleWallpaperDropOrPaste = (event: DragEvent | ClipboardEvent) => {
         // Defer heavy file/clipboard scanning so the UI thread can process preventDefault first.
         queueMicrotask(() => {
             handleIncomingEntries(dt, "/images/wallpaper/", null, (file, path) => {
-                console.log(file, path);
-                if (looksLikeImageFile(file)) {
-                    wallpaperState.src = path;
-                    persistWallpaper();
-                    showSuccess("Wallpaper updated");
-                }
+                if (!looksLikeImageFile(file)) return;
+                void setAppWallpaperFromBlob(file)
+                    .then(() => {
+                        wallpaperState.src =
+                            getWallpaperStoragePointer() || path || WALLPAPER_IDB_MARKER;
+                        persistWallpaper();
+                        showSuccess("Wallpaper updated");
+                    })
+                    .catch((err) => {
+                        console.warn(err);
+                        showError("Failed to set wallpaper");
+                    });
             });
         });
     }
@@ -484,7 +523,8 @@ const openItemEditor = (item?: SpeedDialItem, opts?: {
         href: workingMeta?.href || "",
         view: workingMeta?.view || "",
         description: workingMeta?.description || "",
-        shape: String(workingMeta?.shape || "squircle")
+        shape: String(workingMeta?.shape || "squircle"),
+        openLinkTarget: resolveItemOpenLinkTarget(workingMeta)
     };
 
     openShortcutEditor({
@@ -496,7 +536,8 @@ const openItemEditor = (item?: SpeedDialItem, opts?: {
             href: draft.href,
             view: draft.view,
             description: draft.description,
-            shape: draft.shape
+            shape: draft.shape,
+            openLinkTarget: draft.openLinkTarget || getDefaultOpenLinkTarget()
         },
         actionOptions: ACTION_OPTIONS,
         viewOptions: [...NAVIGATION_SHORTCUTS].map((shortcut: { view: string; label: string; icon: string }) => ({
@@ -505,7 +546,8 @@ const openItemEditor = (item?: SpeedDialItem, opts?: {
         })),
         registerForBackNavigation: true,
         isViewAction: (value) => value === "open-view",
-        isHrefAction: (value) => value === "open-link" || value === "copy-link",
+        /* WHY: windowed view tiles may also carry an Open-link URL (hash / deep link). */
+        isHrefAction: (value) => value === "open-link" || value === "copy-link" || value === "open-view",
         onSave: (next) => {
             workingItem.label.value = next.label;
             workingItem.icon.value = next.icon || "sparkle";
@@ -515,6 +557,15 @@ const openItemEditor = (item?: SpeedDialItem, opts?: {
             workingMeta.href = next.href;
             workingMeta.description = next.description;
             workingMeta.shape = next.shape;
+            {
+                const v = String(next.openLinkTarget || "").toLowerCase();
+                workingMeta.openLinkTarget =
+                    v === "inline" || v === "in-shell"
+                        ? "inline"
+                        : v === "new-tab" || v === "tab" || v === "browser" || v === "browser-tab"
+                          ? "new-tab"
+                          : "native-window";
+            }
             if (isNew) {
                 addSpeedDialItem(workingItem);
             } else {
@@ -581,8 +632,56 @@ export function createCtxMenu(makeView?: any) {
                         action: () => {},
                         children: [
                             toLeaf(createMenuEntryForAction(resolveItemAction(item) || "open-view", item, "Run action", getSpeedDialViewOpener() || makeView)),
-                            ...(getSpeedDialMeta(item.id)?.href ? [
-                                toLeaf(createMenuEntryForAction("open-link", item, "Open link", getSpeedDialViewOpener() || makeView)),
+                            /* WHY: settings/explorer/markdown/workcenter synthesize #view when href empty. */
+                            ...(resolveSpeedDialItemHref(item) ? [
+                                {
+                                    id: "open-link-native",
+                                    label: "Open Native (new window)",
+                                    icon: "corners-out",
+                                    action: () =>
+                                        runItemAction(
+                                            item,
+                                            "open-link",
+                                            {
+                                                event,
+                                                initiator: targetEl as HTMLElement,
+                                                openLinkTarget: "native-window"
+                                            },
+                                            getSpeedDialViewOpener() || makeView
+                                        )
+                                },
+                                {
+                                    id: "open-link-new-tab",
+                                    label: "Open in new tab",
+                                    icon: "arrow-square-out",
+                                    action: () =>
+                                        runItemAction(
+                                            item,
+                                            "open-link",
+                                            {
+                                                event,
+                                                initiator: targetEl as HTMLElement,
+                                                openLinkTarget: "new-tab"
+                                            },
+                                            getSpeedDialViewOpener() || makeView
+                                        )
+                                },
+                                {
+                                    id: "open-link-inline",
+                                    label: "Open Inline",
+                                    icon: "app-window",
+                                    action: () =>
+                                        runItemAction(
+                                            item,
+                                            "open-link",
+                                            {
+                                                event,
+                                                initiator: targetEl as HTMLElement,
+                                                openLinkTarget: "inline"
+                                            },
+                                            getSpeedDialViewOpener() || makeView
+                                        )
+                                },
                                 toLeaf(createMenuEntryForAction("copy-link", item, "Copy link", getSpeedDialViewOpener() || makeView))
                             ] : []),
                             toLeaf(createMenuEntryForAction("copy-state-desc", item, "Copy shortcut JSON", getSpeedDialViewOpener() || makeView))
@@ -610,6 +709,15 @@ export function createCtxMenu(makeView?: any) {
                                 action: () => {
                                     const targetView = String(getSpeedDialMeta(item.id)?.view || "viewer");
                                     openViewTask(targetView, { windowType: "tabbed" });
+                                }
+                            },
+                            {
+                                id: "open-in-native-window",
+                                label: "Native window (WCO)",
+                                icon: "corners-out",
+                                action: () => {
+                                    const targetView = String(getSpeedDialMeta(item.id)?.view || "viewer");
+                                    openViewTask(targetView, { native: "1" });
                                 }
                             }
                         ]
@@ -699,6 +807,9 @@ export function createCtxMenu(makeView?: any) {
                         children: [
                             { id: "open-explorer", label: "Explorer", icon: "books", action: ()=>{
                                 getSpeedDialActionRegistry().get("open-view-explorer")?.({ id: "", items: speedDialItems, meta: speedDialMeta, viewMaker: getSpeedDialViewOpener() || makeView }, {});
+                            } },
+                            { id: "open-workcenter", label: "Work Center", icon: "briefcase", action: ()=>{
+                                getSpeedDialActionRegistry().get("open-view-workcenter")?.({ id: "", items: speedDialItems, meta: speedDialMeta, viewMaker: getSpeedDialViewOpener() || makeView }, {});
                             } },
                             { id: "open-settings", label: "Settings", icon: "gear-six", action: ()=>{
                                 getSpeedDialActionRegistry().get("open-view-settings")?.({ id: "", items: speedDialItems, meta: speedDialMeta, viewMaker: getSpeedDialViewOpener() || makeView }, {});

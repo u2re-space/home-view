@@ -6,6 +6,15 @@
 import { navigate } from "fest/lure";
 import {
     NAVIGATION_SHORTCUTS,
+    buildSpeedDialViewPathHref,
+    isExternalWebHref,
+    normalizeExternalWebHref,
+    openInDetachedBrowserWindow,
+    openInNewBrowserTab,
+    parseSpeedDialViewFromHref,
+    normalizeOpenLinkTarget,
+    resolveItemOpenLinkTarget,
+    resolveSpeedDialItemHref,
     snapshotSpeedDialItem,
     type SpeedDialItem,
     type SpeedDialMetaRegistry
@@ -45,12 +54,55 @@ const iconsPerAction = new Map<string, string>();
 
 let builtinsInstalled = false;
 
-const isSameOrigin = (href: string): boolean => {
+/**
+ * Turn bare view tokens (`settings`, `#workcenter`, `/viewer`) into absolute
+ * mono-app URLs (`https://host/settings?shell=environment&native=1&view=settings`).
+ * External http(s)/mailto links pass through unchanged.
+ */
+export const normalizeSpeedDialOpenHref = (raw: string): string => {
+    const input = String(raw || "").trim();
+    if (!input) return "";
+    if (/^(mailto:|blob:|data:)/i.test(input)) return input;
+
+    const asView = (candidate: string): string => {
+        const view = resolveOpenViewTarget(candidate);
+        return view ? buildSpeedDialViewPathHref(view, true, { native: true }) : "";
+    };
+
+    /* Already absolute http(s). */
+    if (/^https?:\/\//i.test(input)) {
+        try {
+            const u = new URL(input);
+            if (typeof location !== "undefined" && u.origin === location.origin) {
+                const seg = u.pathname.replace(/\/+$/, "").split("/").filter(Boolean).pop() || "";
+                const mono = asView(seg);
+                if (mono) return mono;
+            }
+            return u.href;
+        } catch {
+            return input;
+        }
+    }
+
+    if (input.startsWith("/")) {
+        const seg = input.replace(/^\//, "").split(/[/?#]/)[0];
+        const mono = asView(seg);
+        if (mono) return mono;
+        try {
+            return new URL(input, location.href).href;
+        } catch {
+            return input;
+        }
+    }
+
+    const token = input.replace(/^#/, "").split(/[/?#]/)[0].trim();
+    const mono = asView(token);
+    if (mono && !/[.:]/.test(token)) return mono;
+
     try {
-        const u = new URL(href, typeof location !== "undefined" ? location.href : "https://local.invalid/");
-        return u.origin === (typeof location !== "undefined" ? location.origin : "");
+        return new URL(input, location.href).href;
     } catch {
-        return false;
+        return input;
     }
 };
 
@@ -111,6 +163,38 @@ const installBuiltins = (): void => {
             return;
         }
         const viewMaker = context?.viewMaker ?? getSpeedDialViewOpener();
+        /*
+         * Explicit per-tile / menu Native → new PWA/app window (same as open-link native).
+         * Default open-view stays inline in the current environment shell.
+         */
+        const linkTarget =
+            context?.openLinkTarget != null
+                ? normalizeOpenLinkTarget(context.openLinkTarget)
+                : meta?.openLinkTarget != null && String(meta.openLinkTarget).trim()
+                  ? normalizeOpenLinkTarget(meta.openLinkTarget)
+                  : "inline";
+        if (linkTarget === "native-window") {
+            const href = buildSpeedDialViewPathHref(targetView, true, { native: true });
+            if (!href) {
+                showError("Link is missing");
+                return;
+            }
+            if (!openInDetachedBrowserWindow(href)) {
+                showError("Unable to open native window");
+            }
+            return;
+        }
+        if (linkTarget === "new-tab") {
+            const href = buildSpeedDialViewPathHref(targetView, true, { native: false });
+            if (!href) {
+                showError("Link is missing");
+                return;
+            }
+            if (!openInNewBrowserTab(href)) {
+                showError("Unable to open new tab");
+            }
+            return;
+        }
         ensureHashNavigation(targetView, viewMaker, {});
     });
 
@@ -118,17 +202,75 @@ const installBuiltins = (): void => {
         const item = context?.items?.find?.((i: SpeedDialItem) => i?.id === context?.id) || null;
         const metaMap = context?.meta as SpeedDialMetaRegistry | undefined;
         const meta = item && metaMap?.get ? metaMap.get(item.id) : null;
-        const href = meta?.href || (item as any)?.href || context?.href;
+        /*
+         * - native-window → PWA app window when installed (mono `?native=1`); else detached
+         * - inline → openView in current environment shell (same tab)
+         * - new-tab → ordinary browser tab (`target=_blank`) for http(s)/www or app URL
+         */
+        const raw = meta?.href || (item as any)?.href || context?.href || resolveSpeedDialItemHref(item);
+        const viewFromMeta = resolveOpenViewTarget(String(meta?.view || ""));
+        const externalHref = isExternalWebHref(raw) ? normalizeExternalWebHref(raw) || normalizeSpeedDialOpenHref(String(raw || "")) : "";
+        const view = externalHref
+            ? ""
+            : resolveOpenViewTarget(parseSpeedDialViewFromHref(String(raw || ""))) || viewFromMeta;
+        const linkTarget =
+            context?.openLinkTarget != null
+                ? normalizeOpenLinkTarget(context.openLinkTarget)
+                : resolveItemOpenLinkTarget(meta);
+        const opener = context?.viewMaker ?? getSpeedDialViewOpener();
+
+        /* Inline: always in-session env window — never a second browser window/tab. */
+        if (linkTarget === "inline") {
+            if (view && typeof opener === "function") {
+                try {
+                    opener(view, {});
+                    return;
+                } catch (e) {
+                    console.warn("[speed-dial] inline openView failed; falling back to URL", e);
+                }
+            }
+            if (externalHref && typeof opener === "function") {
+                try {
+                    /* Prefer in-shell viewer for arbitrary http(s) when available. */
+                    opener("viewer", { params: { url: externalHref, href: externalHref } } as any);
+                    return;
+                } catch (e) {
+                    console.warn("[speed-dial] inline viewer open failed", e);
+                }
+            }
+            showError(externalHref ? "Unable to open link inline" : "Link is missing");
+            return;
+        }
+
+        /* New browser tab — keep external URLs as-is; app views open without native=1. */
+        if (linkTarget === "new-tab") {
+            const href = externalHref
+                ? externalHref
+                : view
+                  ? buildSpeedDialViewPathHref(view, true, { native: false })
+                  : normalizeSpeedDialOpenHref(String(raw || ""));
+            if (!href) {
+                showError("Link is missing");
+                return;
+            }
+            if (!openInNewBrowserTab(href)) {
+                showError("Unable to open new tab");
+            }
+            return;
+        }
+
+        /* Native / detached window: mono boot for app views; sized window for http(s). */
+        const href = externalHref
+            ? externalHref
+            : view
+              ? buildSpeedDialViewPathHref(view, true, { native: true })
+              : normalizeSpeedDialOpenHref(String(raw || ""));
         if (!href) {
             showError("Link is missing");
             return;
         }
-        const target = isSameOrigin(String(href)) ? "_self" : "_blank";
-        try {
-            window?.open?.(String(href), target, "noopener,noreferrer");
-        } catch (e) {
-            console.warn(e);
-            showError("Unable to open link");
+        if (!openInDetachedBrowserWindow(href)) {
+            showError("Unable to open native window (popup blocked?)");
         }
     });
 
@@ -136,7 +278,8 @@ const installBuiltins = (): void => {
         const item = context?.items?.find?.((i: SpeedDialItem) => i?.id === context?.id) || null;
         const metaMap = context?.meta as SpeedDialMetaRegistry | undefined;
         const meta = item && metaMap?.get ? metaMap.get(item.id) : null;
-        const href = meta?.href || (item as any)?.href || context?.href;
+        const raw = meta?.href || (item as any)?.href || context?.href || resolveSpeedDialItemHref(item);
+        const href = normalizeSpeedDialOpenHref(String(raw || ""));
         if (!href) {
             showError("Nothing to copy");
             return;

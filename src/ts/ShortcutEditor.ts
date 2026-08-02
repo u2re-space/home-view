@@ -1,14 +1,39 @@
 /*
  * Filename: ShortcutEditor.ts
  * FullPath: modules/views/home-view/src/ts/ShortcutEditor.ts
- * Change date and time: 11.15.00_31.07.2026
- * Reason for changes: Mount above env chrome (z-index) so Create/Edit Shortcut works in deploy.
+ * Change date and time: 09.30.00_02.08.2026
+ * Reason for changes: Theme stamp for light-modal contrast; Open-link URL for view tiles.
  */
 import { registerModal } from "fest/lure";
 import { getHomeOverlayMountResolver } from "./view-opener";
 
 /** Above `$z-shell-chrome` / context-menu layer so the form is visible and clickable. */
 const SHORTCUT_EDITOR_Z = "2147483646";
+
+/** WHY: Match context-menu pin — Settings may not have applied data-theme yet. */
+function resolveEditorTheme(): "light" | "dark" {
+    const root = document.documentElement;
+    const pinned = String(root.getAttribute("data-theme") || "").trim().toLowerCase();
+    if (pinned === "light" || pinned === "dark") return pinned;
+    const scheme = String(root.getAttribute("data-scheme") || "").trim().toLowerCase();
+    if (scheme === "light" || scheme === "dark") return scheme;
+    try {
+        const stored = String(localStorage.getItem("rs-appearance-theme") || "").trim().toLowerCase();
+        if (stored === "light" || stored === "dark") return stored;
+    } catch {
+        // private mode
+    }
+    return typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: light)").matches
+        ? "light"
+        : "dark";
+}
+
+function synthesizeViewHref(view: string): string {
+    const id = String(view || "").trim().replace(/^#/, "").replace(/^\/+/, "");
+    if (!id) return "";
+    /* Mono native Windows2 URL (CWSP-explorer / document style). */
+    return `/${id}?shell=environment&native=1&view=${encodeURIComponent(id)}`;
+}
 
 export type ShortcutActionOption = {
     value: string;
@@ -29,6 +54,8 @@ export type ShortcutEditorDraft = {
     description: string;
     /** Tile shape: square, circle, or squircle */
     shape: string;
+    /** Open link: native immersive vs inline env window (same tab). */
+    openLinkTarget: string;
 };
 
 type ShortcutEditorOptions = {
@@ -92,8 +119,10 @@ export const openShortcutEditor = (options: ShortcutEditorOptions): void => {
 
     const modal = document.createElement("div");
     modal.className = "rs-modal-backdrop speed-dial-editor";
+    const theme = resolveEditorTheme();
+    modal.dataset.theme = theme;
     modal.innerHTML = `
-        <form class="modal-form speed-dial-editor__form">
+        <form class="modal-form speed-dial-editor__form" data-theme="${theme}">
             <header class="modal-header">
                 <h2 class="modal-title">${mode === "create" ? "Create shortcut" : "Edit shortcut"}</h2>
                 <p class="modal-description">Configure quick access tiles for frequently used views or links.</p>
@@ -125,7 +154,15 @@ export const openShortcutEditor = (options: ShortcutEditorOptions): void => {
                 </label>
                 <label class="modal-field" data-field="href">
                     <span>Link</span>
-                    <input name="href" type="text" inputmode="url" autocomplete="off" placeholder="https://…, mailto:…" />
+                    <input name="href" type="text" inputmode="url" autocomplete="off" placeholder="/settings?native=1, /workcenter, or https://…" />
+                </label>
+                <label class="modal-field" data-field="open-link-target">
+                    <span>Open link in</span>
+                    <select name="openLinkTarget">
+                        <option value="native-window">Native window (new browser window)</option>
+                        <option value="new-tab">Open in new tab</option>
+                        <option value="inline">Open Inline (env window, same tab)</option>
+                    </select>
                 </label>
                 <label class="modal-field">
                     <span>Description</span>
@@ -151,16 +188,31 @@ export const openShortcutEditor = (options: ShortcutEditorOptions): void => {
     const actionSelect = form?.querySelector('select[name="action"]') as HTMLSelectElement | null;
     const viewSelect = form?.querySelector('select[name="view"]') as HTMLSelectElement | null;
     const hrefInput = form?.querySelector('input[name="href"]') as HTMLInputElement | null;
+    const openLinkTargetSelect = form?.querySelector('select[name="openLinkTarget"]') as HTMLSelectElement | null;
     const descriptionInput = form?.querySelector('textarea[name="description"]') as HTMLTextAreaElement | null;
     const viewField = form?.querySelector('[data-field="view"]') as HTMLElement | null;
     const hrefField = form?.querySelector('[data-field="href"]') as HTMLElement | null;
+    const openLinkTargetField = form?.querySelector('[data-field="open-link-target"]') as HTMLElement | null;
 
     if (labelInput) labelInput.value = String(initial.label || "New shortcut");
     if (iconInput) iconInput.value = String(initial.icon || "sparkle");
     const shapeVal = String(initial.shape || "squircle").toLowerCase();
     if (shapeSelect) shapeSelect.value = ["circle", "square", "squircle"].includes(shapeVal) ? shapeVal : "squircle";
-    if (hrefInput) hrefInput.value = String(initial.href || "");
+    if (hrefInput) {
+        hrefInput.value = String(initial.href || "");
+        const autoHref = synthesizeViewHref(initial.view);
+        if (autoHref) hrefInput.placeholder = `Auto: ${autoHref}`;
+    }
     if (descriptionInput) descriptionInput.value = String(initial.description || "");
+    const olt = String(initial.openLinkTarget || "native-window").toLowerCase();
+    if (openLinkTargetSelect) {
+        openLinkTargetSelect.value =
+            olt === "inline" || olt === "in-shell"
+                ? "inline"
+                : olt === "new-tab" || olt === "tab" || olt === "browser" || olt === "browser-tab"
+                  ? "new-tab"
+                  : "native-window";
+    }
 
     setSelectOptions(actionSelect, actionOptions, String(initial.action || ""));
     setSelectOptions(viewSelect, viewOptions, String(initial.view || ""), { value: "", label: "Choose view" });
@@ -169,7 +221,25 @@ export const openShortcutEditor = (options: ShortcutEditorOptions): void => {
         const action = String(actionSelect?.value || "");
         if (viewField) viewField.hidden = !isViewAction(action);
         if (hrefField) hrefField.hidden = !isHrefAction(action);
+        /* Show target mode for Open link (and when Open view also exposes Link). */
+        if (openLinkTargetField) {
+            openLinkTargetField.hidden = !(action === "open-link" || isHrefAction(action));
+        }
+        /* Prefill Open-link from view when switching to link action with empty href. */
+        if (action === "open-link" && hrefInput && !String(hrefInput.value || "").trim()) {
+            const fromView = synthesizeViewHref(String(viewSelect?.value || initial.view || ""));
+            if (fromView) hrefInput.value = fromView;
+        }
+        const autoHref = synthesizeViewHref(String(viewSelect?.value || initial.view || ""));
+        if (hrefInput && autoHref) {
+            hrefInput.placeholder = `Auto: ${autoHref}`;
+        }
     };
+
+    viewSelect?.addEventListener("change", () => {
+        const autoHref = synthesizeViewHref(String(viewSelect?.value || ""));
+        if (hrefInput && autoHref) hrefInput.placeholder = `Auto: ${autoHref}`;
+    });
 
     let unregisterBackNav: (() => void) | null = null;
     const escHandler = (event: KeyboardEvent) => {
@@ -215,7 +285,13 @@ export const openShortcutEditor = (options: ShortcutEditorOptions): void => {
             view: String(viewSelect?.value || "").trim(),
             href: String(hrefInput?.value || "").trim(),
             description: String(descriptionInput?.value || "").trim(),
-            shape: String(shapeSelect?.value || "squircle").toLowerCase()
+            shape: String(shapeSelect?.value || "squircle").toLowerCase(),
+            openLinkTarget: (() => {
+                const v = String(openLinkTargetSelect?.value || "native-window").toLowerCase();
+                if (v === "inline" || v === "in-shell") return "inline";
+                if (v === "new-tab" || v === "tab" || v === "browser") return "new-tab";
+                return "native-window";
+            })()
         });
         closeModal();
     });
@@ -227,6 +303,8 @@ export const openShortcutEditor = (options: ShortcutEditorOptions): void => {
     modal.style.setProperty("position", "fixed", "important");
     modal.style.setProperty("inset", "0", "important");
     modal.style.setProperty("z-index", SHORTCUT_EDITOR_Z, "important");
+    modal.style.setProperty("color-scheme", theme === "light" ? "light only" : "dark only", "important");
+    form?.style.setProperty("color-scheme", theme === "light" ? "light only" : "dark only", "important");
     const mount =
         (typeof getHomeOverlayMountResolver === "function"
             ? getHomeOverlayMountResolver()?.(null)

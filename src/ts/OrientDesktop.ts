@@ -1,8 +1,8 @@
 /*
  * Filename: OrientDesktop.ts
  * FullPath: modules/views/home-view/src/ts/OrientDesktop.ts
- * Change date and time: 17.32.00_30.07.2026
- * Reason for changes: Desktop + wallpaper orient via whenAnyScreenChanges (matchMedia + resize).
+ * Change date and time: 10.50.00_02.08.2026
+ * Reason for changes: Persist wallpaper via IDB blob (localStorage quota fix).
  */
 import { loadAsAdopted, getCorrectOrientation, orientationNumberMap, whenAnyScreenChanges } from "fest/dom";
 import type { GridItemType } from "fest/core";
@@ -21,7 +21,7 @@ import {
     compactIconSrcForStorage,
     expandIconSrcForDom,
     normalizeIconSrcFromPayload,
-    hostnameToFaviconRef,
+    faviconRefForHref,
     serializeDesktopItemCompact,
     ITEM_COMPACT_KIND,
     parseDesktopItemCompact
@@ -35,7 +35,12 @@ import {
 import speedDialViewStyles from "./SpeedDial.scss?inline";
 // Registers `data-mixin="ui-orientbox"` (container-type / --orient wiring).
 import "./OrientBox";
-import { setAppWallpaper, syncAppWallpaperOrient } from "../../misc/Canvas-2";
+import {
+    setAppWallpaperFromBlob,
+    syncAppWallpaperOrient,
+    getWallpaperStoragePointer,
+    WALLPAPER_IDB_MARKER
+} from "../../misc/Canvas-2";
 import {
     closeUnifiedContextMenu,
     type ContextMenuEntry,
@@ -46,6 +51,19 @@ import {
     MARKDOWN_VIEW_MANAGED_WINDOW_KEY
 } from "../../../window-frame/src/views/markdown-view-window";
 import { resolveOpenViewTarget } from "./action-registry";
+import {
+    buildSpeedDialViewPathHref,
+    isExternalWebHref,
+    normalizeExternalWebHref,
+    openInDetachedBrowserWindow,
+    openInNewBrowserTab,
+    parseSpeedDialViewFromHref,
+    normalizeOpenLinkTarget,
+    getDefaultOpenLinkTarget,
+    wallpaperState,
+    persistWallpaper,
+    type OpenLinkTarget
+} from "./launcher-state";
 import { navigate } from "fest/lure";
 
 /** Orient-layer desktop shares SpeedDial styles; HomeView only adopts this sheet while home is visible, so load once here. */
@@ -70,6 +88,8 @@ type DesktopItem = {
     href?: string;
     /** Visual tile shape (persisted in JSON). */
     shape?: DesktopTileShape;
+    /** Open link: native immersive vs inline env window. */
+    openLinkTarget?: OpenLinkTarget;
 };
 
 type DesktopState = {
@@ -176,7 +196,11 @@ const normalizeItem = (raw: any, columns: number, rows: number): DesktopItem | n
         cell: clampCell([Number(raw?.cell?.[0] || 0), Number(raw?.cell?.[1] || 0)], columns, rows),
         action: action === "open-link" ? "open-link" : "open-view",
         href: raw?.href ? String(raw.href) : "",
-        shape: normalizeTileShape(raw?.shape)
+        shape: normalizeTileShape(raw?.shape),
+        openLinkTarget:
+            raw?.openLinkTarget != null && String(raw.openLinkTarget).trim()
+                ? normalizeOpenLinkTarget(raw.openLinkTarget)
+                : undefined
     };
     if (item.action === "open-link") {
         item.viewId = "home";
@@ -242,20 +266,16 @@ const pickDroppedImageFile = (event: DragEvent): File | null => {
     return files.find((file) => file.type?.startsWith("image/")) || null;
 };
 
-const readAsDataUrl = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result || ""));
-        reader.onerror = () => reject(reader.error || new Error("Failed to read image"));
-        reader.readAsDataURL(file);
-    });
-};
-
 const applyWallpaperFromFile = async (file: File): Promise<boolean> => {
     if (!file?.type?.startsWith("image/")) return false;
-    const dataUrl = await readAsDataUrl(file);
-    if (!dataUrl) return false;
-    setAppWallpaper(dataUrl);
+    /* WHY: data-URLs blow localStorage quota; IDB via setAppWallpaperFromBlob is durable. */
+    await setAppWallpaperFromBlob(file);
+    try {
+        wallpaperState.src = getWallpaperStoragePointer() || WALLPAPER_IDB_MARKER;
+        persistWallpaper();
+    } catch {
+        /* SpeedDial dual-state is best-effort */
+    }
     return true;
 };
 
@@ -330,7 +350,7 @@ const createLinkItem = (url: URL, cell: [number, number], labelHint = ""): Deskt
         id: createDesktopItemId("link"),
         label,
         icon: "link",
-        iconSrc: hostnameToFaviconRef(url.hostname),
+        iconSrc: faviconRefForHref(url.href),
         viewId: "home",
         cell,
         action: "open-link",
@@ -439,13 +459,77 @@ const downloadJson = (filename: string, content: string): void => {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
 
-const openDesktopItem = (item: DesktopItem): void => {
+const openDesktopItem = (item: DesktopItem, forceTarget?: OpenLinkTarget): void => {
+    const resolveTarget = (): OpenLinkTarget => {
+        if (forceTarget) return forceTarget;
+        if (item.openLinkTarget) return normalizeOpenLinkTarget(item.openLinkTarget);
+        /* External http(s)/www → new tab by default (not mono native chrome). */
+        if (item.action === "open-link" && isExternalWebHref(item.href)) return "new-tab";
+        return getDefaultOpenLinkTarget();
+    };
+
     if (item.action === "open-link") {
         if (!item.href) return;
-        window.open(item.href, "_blank", "noopener,noreferrer");
+        /*
+         * - native-window → detached browser window (mono for app views)
+         * - new-tab → ordinary browser tab (http/https/www or app URL)
+         * - inline → openView in current environment shell
+         */
+        const externalHref = isExternalWebHref(item.href)
+            ? normalizeExternalWebHref(item.href) || String(item.href)
+            : "";
+        const view = externalHref ? "" : resolveOpenViewTarget(parseSpeedDialViewFromHref(item.href));
+        const linkTarget = resolveTarget();
+        if (linkTarget === "inline") {
+            const opener = getSpeedDialViewOpener();
+            if (view && opener) {
+                opener(view, {});
+                return;
+            }
+            if (externalHref && opener) {
+                try {
+                    opener("viewer", { params: { url: externalHref, href: externalHref } } as any);
+                    return;
+                } catch {
+                    /* fall through */
+                }
+            }
+        }
+        if (linkTarget === "new-tab") {
+            const href = externalHref
+                ? externalHref
+                : view
+                  ? buildSpeedDialViewPathHref(view, true, { native: false })
+                  : item.href;
+            openInNewBrowserTab(href);
+            return;
+        }
+        const href = externalHref
+            ? externalHref
+            : view
+              ? buildSpeedDialViewPathHref(view, true, { native: true })
+              : item.href;
+        openInDetachedBrowserWindow(href);
         return;
     }
     const target = resolveDesktopShellViewId(item.viewId, MARKDOWN_VIEW_MANAGED_WINDOW_KEY);
+    const linkTarget =
+        forceTarget ||
+        (item.openLinkTarget ? normalizeOpenLinkTarget(item.openLinkTarget) : "inline");
+    if (linkTarget === "native-window") {
+        const href = buildSpeedDialViewPathHref(target, true, { native: true });
+        if (href) {
+            openInDetachedBrowserWindow(href);
+            return;
+        }
+    }
+    if (linkTarget === "new-tab") {
+        const href = buildSpeedDialViewPathHref(target, true, { native: false });
+        if (href) {
+            openInNewBrowserTab(href);
+            return;
+        }
+    }
     const opener = getSpeedDialViewOpener();
     if (opener) {
         opener(target, { source: "home", itemId: item.id });
@@ -637,9 +721,22 @@ export const initializeOrientedDesktop = (host: HTMLElement): void => {
                 iconShape.dataset.shape = normalizeTileShape(item.shape);
                 const existingImage = iconShape.querySelector(".ui-ws-item-icon-image") as HTMLImageElement | null;
                 let iconElement = iconShape.querySelector("ui-icon") as HTMLElement | null;
+                /* Scrub stale LAN favicon refs so expand returns "" and glyph stays. */
+                item.iconSrc = normalizeIconSrcFromPayload(item.iconSrc, item.href, item.action);
                 const domIconSrc = expandIconSrcForDom(item.iconSrc || "");
+                const ensureGlyph = (): HTMLElement => {
+                    let glyph = iconShape.querySelector("ui-icon") as HTMLElement | null;
+                    if (!glyph) {
+                        glyph = document.createElement("ui-icon");
+                        glyph.setAttribute("icon-style", "duotone");
+                        iconShape.appendChild(glyph);
+                    }
+                    glyph.setAttribute("icon-style", "duotone");
+                    glyph.setAttribute("icon", item.icon || (item.action === "open-link" ? "link" : "sparkle"));
+                    return glyph;
+                };
                 if (domIconSrc) {
-                    iconElement?.remove();
+                    ensureGlyph();
                     if (existingImage) {
                         existingImage.src = domIconSrc;
                         existingImage.alt = item.label ? String(item.label) : "";
@@ -653,24 +750,14 @@ export const initializeOrientedDesktop = (host: HTMLElement): void => {
                         image.src = domIconSrc;
                         image.addEventListener("error", () => {
                             image.remove();
-                            if (!iconShape.querySelector("ui-icon")) {
-                                const fallback = document.createElement("ui-icon");
-                                fallback.setAttribute("icon-style", "duotone");
-                                fallback.setAttribute("icon", item.icon || "link");
-                                iconShape.appendChild(fallback);
-                            }
+                            item.iconSrc = "";
+                            ensureGlyph();
                         });
                         iconShape.insertBefore(image, iconShape.firstChild);
                     }
                 } else {
                     if (existingImage) existingImage.remove();
-                    if (!iconElement) {
-                        iconElement = document.createElement("ui-icon");
-                        iconElement.setAttribute("icon-style", "duotone");
-                        iconShape.appendChild(iconElement);
-                    }
-                    iconElement.setAttribute("icon-style", "duotone");
-                    iconElement.setAttribute("icon", item.icon || "sparkle");
+                    ensureGlyph();
                 }
             }
             applyCellVars(iconNode, item.cell);
@@ -731,14 +818,19 @@ export const initializeOrientedDesktop = (host: HTMLElement): void => {
         const icon = document.createElement("div");
         icon.className = "ui-ws-item-icon shaped";
         icon.dataset.shape = normalizeTileShape(item.shape);
+        item.iconSrc = normalizeIconSrcFromPayload(item.iconSrc, item.href, item.action);
         const mountIconSrc = expandIconSrcForDom(item.iconSrc || "");
         const mountGlyph = (): void => {
-            if (icon.querySelector("ui-icon")) return;
-            const iconElement = document.createElement("ui-icon");
+            let iconElement = icon.querySelector("ui-icon") as HTMLElement | null;
+            if (!iconElement) {
+                iconElement = document.createElement("ui-icon");
+                icon.appendChild(iconElement);
+            }
             iconElement.setAttribute("icon-style", "duotone");
-            iconElement.setAttribute("icon", item.icon || "link");
-            icon.appendChild(iconElement);
+            iconElement.setAttribute("icon", item.icon || (item.action === "open-link" ? "link" : "sparkle"));
         };
+        /* Always mount glyph first — favicon overlays; on error glyph remains visible. */
+        mountGlyph();
         if (mountIconSrc) {
             const image = document.createElement("img");
             image.className = "ui-ws-item-icon-image";
@@ -747,14 +839,12 @@ export const initializeOrientedDesktop = (host: HTMLElement): void => {
             image.decoding = "async";
             image.referrerPolicy = "no-referrer";
             image.src = mountIconSrc;
-            // WHY: Google s2 favicon can 404/CORS-fail — keep a glyph so the tile is not blank.
             image.addEventListener("error", () => {
                 image.remove();
+                item.iconSrc = "";
                 mountGlyph();
             });
-            icon.appendChild(image);
-        } else {
-            mountGlyph();
+            icon.insertBefore(image, icon.firstChild);
         }
         el.appendChild(icon);
         return el;
@@ -950,7 +1040,8 @@ export const initializeOrientedDesktop = (host: HTMLElement): void => {
                 view: workingItem.viewId || "",
                 href: workingItem.href || "",
                 description: String(seed.description || ""),
-                shape: normalizeTileShape(workingItem.shape)
+                shape: normalizeTileShape(workingItem.shape),
+                openLinkTarget: workingItem.openLinkTarget || getDefaultOpenLinkTarget()
             },
             actionOptions: ACTION_OPTIONS,
             viewOptions: DESKTOP_SHELL_VIEW_OPTIONS,
@@ -964,16 +1055,22 @@ export const initializeOrientedDesktop = (host: HTMLElement): void => {
                 workingItem.viewId =
                     action === "open-link" ? "home" : resolveDesktopShellViewId(next.view, MARKDOWN_VIEW_MANAGED_WINDOW_KEY);
                 workingItem.shape = normalizeTileShape(next.shape);
-                if (action === "open-link" && nextHref) {
-                    try {
-                        const u = new URL(nextHref, window.location.href);
-                        workingItem.iconSrc = /^https?:$/i.test(u.protocol) ? hostnameToFaviconRef(u.hostname) : "";
-                    } catch {
-                        workingItem.iconSrc = "";
-                    }
-                } else {
-                    workingItem.iconSrc = "";
+                {
+                    const v = String(next.openLinkTarget || "").toLowerCase();
+                    workingItem.openLinkTarget =
+                        v === "inline" || v === "in-shell"
+                            ? "inline"
+                            : v === "new-tab" || v === "tab" || v === "browser" || v === "browser-tab"
+                              ? "new-tab"
+                              : "native-window";
                 }
+                /*
+                 * WHY: `settings` / `/workcenter` resolve to same-origin URLs — auto-favicon
+                 * used to set `g:192.168.x.x`, remove the glyph, and leave a blank tile.
+                 * Only external public hosts get a favicon; otherwise keep Phosphor `icon`.
+                 */
+                workingItem.iconSrc =
+                    action === "open-link" && nextHref ? faviconRefForHref(nextHref) : "";
                 if (isNew) {
                     addItems([workingItem], suggestedCell);
                 } else {
@@ -1010,6 +1107,21 @@ export const initializeOrientedDesktop = (host: HTMLElement): void => {
                     action: () => {},
                     children: [
                         ...(item.action === "open-link" && item.href ? [{
+                            id: "open-link-native",
+                            label: "Open Native (new window)",
+                            icon: "corners-out",
+                            action: () => openDesktopItem(item, "native-window")
+                        }, {
+                            id: "open-link-new-tab",
+                            label: "Open in new tab",
+                            icon: "arrow-square-out",
+                            action: () => openDesktopItem(item, "new-tab")
+                        }, {
+                            id: "open-link-inline",
+                            label: "Open Inline",
+                            icon: "app-window",
+                            action: () => openDesktopItem(item, "inline")
+                        }, {
                             id: "copy-link",
                             label: "Copy link",
                             icon: "link",
@@ -1018,15 +1130,6 @@ export const initializeOrientedDesktop = (host: HTMLElement): void => {
                                     await navigator.clipboard.writeText(item.href || "");
                                 } catch {
                                     // ignore
-                                }
-                            }
-                        }, {
-                            id: "open-link-new-window",
-                            label: "Open link in new tab",
-                            icon: "arrow-square-out",
-                            action: () => {
-                                if (item.href) {
-                                    window.open(item.href, "_blank", "noopener,noreferrer");
                                 }
                             }
                         }] : []),

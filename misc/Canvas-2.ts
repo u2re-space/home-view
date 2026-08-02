@@ -4,6 +4,10 @@
 export {
     initializeAppCanvasLayer,
     setAppWallpaper,
+    setAppWallpaperFromBlob,
+    resolveAppWallpaperUrl,
+    getWallpaperStoragePointer,
+    WALLPAPER_IDB_MARKER,
     syncAppWallpaperOrient,
     syncCanvasOrient,
     applyThemeFromWallpaper,

@@ -9,16 +9,107 @@ import { isEnabledView } from "core/routing/core/views";
 
 export type GridCell = [number, number];
 
+/**
+ * How Open link / Open opens a destination.
+ * - `native-window` — new **PWA app window** when installed (`?native=1`); else detached window
+ * - `inline` — same tab, floating `ui-window` in the current environment shell
+ * - `new-tab` — ordinary browser **tab** (`target=_blank`) for http(s)/www or app URL
+ * COMPAT: persisted `in-shell` → `inline`. Literal `new-tab` is the browser-tab mode again.
+ */
+export type OpenLinkTarget = "native-window" | "inline" | "new-tab";
+
 export interface SpeedDialItemMeta {
     action?: string;
     view?: string;
     href?: string;
     description?: string;
     shape?: string;
+    /**
+     * Open destination:
+     * - `native-window` — new browser window / mono native immersive
+     * - `inline` — in-session floating window (same browser tab)
+     * - `new-tab` — new browser tab (http/https/www and app deep links)
+     */
+    openLinkTarget?: OpenLinkTarget | string;
     entityType?: string;
     tags?: string[];
     [key: string]: any;
 }
+
+const OPEN_LINK_TARGET_KEY = "rs-open-link-target";
+
+export const normalizeOpenLinkTarget = (raw: unknown): OpenLinkTarget => {
+    const v = String(raw || "").trim().toLowerCase();
+    if (v === "inline" || v === "in-shell" || v === "env" || v === "shell") {
+        return "inline";
+    }
+    if (
+        v === "new-tab" ||
+        v === "newtab" ||
+        v === "tab" ||
+        v === "browser" ||
+        v === "browser-tab" ||
+        v === "external-tab"
+    ) {
+        return "new-tab";
+    }
+    return "native-window";
+};
+
+/** True for http(s), protocol-relative, or bare `www.` hosts (not app view paths). */
+export const isExternalWebHref = (raw: unknown): boolean => {
+    const s = String(raw || "").trim();
+    if (!s || /^(mailto:|blob:|data:|javascript:)/i.test(s)) return false;
+    if (/^https?:\/\//i.test(s) || /^\/\//.test(s)) return true;
+    if (/^www\./i.test(s)) return true;
+    /* Bare host.tld[/…] — not a single view token like `settings`. */
+    if (/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}([/:?#]|$)/i.test(s) && !s.startsWith("/") && !s.startsWith("#")) {
+        return true;
+    }
+    return false;
+};
+
+/** Normalize `www…` / `//…` / bare host into an absolute http(s) URL. */
+export const normalizeExternalWebHref = (raw: unknown): string => {
+    const s = String(raw || "").trim();
+    if (!s) return "";
+    try {
+        if (/^https?:\/\//i.test(s)) return new URL(s).href;
+        if (/^\/\//.test(s)) return new URL(`https:${s}`).href;
+        if (/^www\./i.test(s) || /^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}([/:?#]|$)/i.test(s)) {
+            return new URL(`https://${s.replace(/^\/+/, "")}`).href;
+        }
+    } catch {
+        return "";
+    }
+    return "";
+};
+
+/** Global default (Settings / localStorage); per-tile meta.openLinkTarget wins. */
+export const getDefaultOpenLinkTarget = (): OpenLinkTarget => {
+    try {
+        return normalizeOpenLinkTarget(localStorage.getItem(OPEN_LINK_TARGET_KEY));
+    } catch {
+        return "native-window";
+    }
+};
+
+export const setDefaultOpenLinkTarget = (target: OpenLinkTarget): void => {
+    try {
+        localStorage.setItem(OPEN_LINK_TARGET_KEY, normalizeOpenLinkTarget(target));
+    } catch {
+        /* private mode */
+    }
+};
+
+export const resolveItemOpenLinkTarget = (meta?: SpeedDialItemMeta | null): OpenLinkTarget => {
+    if (meta?.openLinkTarget != null && String(meta.openLinkTarget).trim()) {
+        return normalizeOpenLinkTarget(meta.openLinkTarget);
+    }
+    /* WHY: http(s)/www tiles default to a browser tab, not mono native app chrome. */
+    if (isExternalWebHref(meta?.href)) return "new-tab";
+    return getDefaultOpenLinkTarget();
+};
 
 export interface SpeedDialPersistedItem {
     id: string;
@@ -44,6 +135,7 @@ const NAVIGATION_SHORTCUTS_ALL = [
     { view: "network", label: "Network", icon: "wifi-high" },
     { view: "viewer", label: "Markdown", icon: "article" },
     { view: "explorer", label: "Explorer", icon: "books" },
+    { view: "workcenter", label: "Work Center", icon: "briefcase" },
     { view: "history", label: "History", icon: "clock-counter-clockwise" },
     { view: "settings", label: "Settings", icon: "gear-six" }
 ] as const;
@@ -188,6 +280,15 @@ const DEFAULT_SPEED_DIAL_DATA_ALL: SpeedDialPersistedItem[] = [
         label: "Markdown",
         action: "open-view",
         meta: { view: "viewer" }
+    },
+    {
+        id: "shortcut-workcenter",
+        /* WHY: [2,1]/[0,1] taken by external/history rows — keep a free default cell. */
+        cell: observe([2, 2]),
+        icon: "briefcase",
+        label: "Work Center",
+        action: "open-view",
+        meta: { view: "workcenter" }
     },
     {
         id: "shortcut-history",
@@ -449,6 +550,256 @@ const ensureExternalShortcuts = () => {
     }
 };
 ensureExternalShortcuts();
+
+/**
+ * WHY: Existing IDB/localStorage grids keep old default sets — missing core view tiles
+ * (e.g. Work Center) never appear until storage is wiped. Merge by id only.
+ */
+const ensureCoreViewShortcuts = () => {
+    const core = DEFAULT_SPEED_DIAL_DATA_ALL.filter(
+        (entry) => entry.action === "open-view" && isSpeedDialViewAllowed(entry.meta, entry.id)
+    );
+    let changed = false;
+    const occupied = new Set(
+        (speedDialItems || []).map((item) => `${Number(item?.cell?.[0]) || 0}:${Number(item?.cell?.[1]) || 0}`)
+    );
+    for (const shortcut of core) {
+        const exists = speedDialItems?.find?.((item) => item?.id === shortcut.id);
+        if (exists) {
+            const meta = getSpeedDialMeta(shortcut.id);
+            if (!meta) {
+                ensureSpeedDialMeta(shortcut.id, { action: "open-view", ...(shortcut.meta || {}) });
+                changed = true;
+            } else if (!String(meta.view || "").trim() && shortcut.meta?.view) {
+                meta.view = shortcut.meta.view;
+                meta.action = meta.action || "open-view";
+                changed = true;
+            }
+            continue;
+        }
+        let cellX = Number(shortcut.cell?.[0]) || 0;
+        let cellY = Number(shortcut.cell?.[1]) || 0;
+        let key = `${cellX}:${cellY}`;
+        if (occupied.has(key)) {
+            let placed = false;
+            for (let y = 0; y < 12 && !placed; y += 1) {
+                for (let x = 0; x < 8 && !placed; x += 1) {
+                    const candidate = `${x}:${y}`;
+                    if (!occupied.has(candidate)) {
+                        cellX = x;
+                        cellY = y;
+                        key = candidate;
+                        placed = true;
+                    }
+                }
+            }
+        }
+        occupied.add(key);
+        const item = createStatefulItem({
+            ...shortcut,
+            cell: observe([cellX, cellY])
+        });
+        if (shortcut.label && item.label && typeof item.label === "object" && "value" in item.label) {
+            item.label.value = shortcut.label;
+        }
+        if (shortcut.icon && item.icon && typeof item.icon === "object" && "value" in item.icon) {
+            item.icon.value = shortcut.icon;
+        }
+        speedDialItems.push(observe(item) as any);
+        ensureSpeedDialMeta(item.id, { action: "open-view", ...(shortcut.meta || {}) });
+        changed = true;
+    }
+    if (changed) {
+        persistSpeedDialItems();
+        persistSpeedDialMeta();
+    }
+};
+ensureCoreViewShortcuts();
+
+/** Router mount prefix (`/cwsp`, `/markdown`, …) when present on `<html>`. */
+const getSpeedDialRouterBase = (): string => {
+    try {
+        return String(document.documentElement?.dataset?.cwspRouterBase || "")
+            .trim()
+            .replace(/\/+$/, "");
+    } catch {
+        return "";
+    }
+};
+
+/**
+ * Entry URL for a view deep link: `/settings?shell=environment[&native=1]&view=settings`
+ * WHY: address-bar readable path; environment keeps `/${view}` (not root `/?view=`).
+ * INVARIANT: open with this path; `preserveNativeDeepLink` must not strip it to `/`.
+ */
+export const buildSpeedDialViewPathHref = (
+    viewId: string,
+    absolute = false,
+    opts?: { native?: boolean }
+): string => {
+    const id = String(viewId || "")
+        .trim()
+        .replace(/^#/, "")
+        .replace(/^\/+/, "")
+        .split(/[/?#]/)[0]
+        .toLowerCase();
+    if (!id) return "";
+    const useNative = opts?.native === true;
+    const base = getSpeedDialRouterBase().replace(/\/+$/, "") || "";
+    const path = `${base}/${id}`.replace(/\/{2,}/g, "/") || `/${id}`;
+    const normalized = path.startsWith("/") ? path : `/${path}`;
+    const withQuery = useNative
+        ? `${normalized}?shell=environment&native=1&view=${encodeURIComponent(id)}`
+        : `${normalized}?shell=environment&view=${encodeURIComponent(id)}`;
+    if (!absolute || typeof location === "undefined") return withQuery;
+    try {
+        const url = new URL(location.href);
+        url.pathname = normalized;
+        url.hash = "";
+        url.search = "";
+        url.searchParams.set("shell", "environment");
+        url.searchParams.set("view", id);
+        if (useNative) {
+            url.searchParams.set("native", "1");
+        } else {
+            url.searchParams.delete("native");
+        }
+        return url.href;
+    } catch {
+        return withQuery;
+    }
+};
+
+/**
+ * Open `href` in a **new browser tab** without navigating the current tab.
+ * WHY: `window.open(url, "_blank", "noopener")` returns `null` by spec even when the
+ * window opened — our old `if (!opened) location.assign(href)` hijacked the desktop.
+ * INVARIANT: never `location.assign` / `location.href =` from native/open-link paths.
+ */
+export const openInNewBrowserTab = (href: string): boolean => {
+    const url = String(href || "").trim();
+    if (!url || typeof document === "undefined") return false;
+    try {
+        const a = document.createElement("a");
+        a.href = url;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.style.display = "none";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return true;
+    } catch (e) {
+        console.warn("[home-view] openInNewBrowserTab failed", e);
+        return false;
+    }
+};
+
+/** @deprecated alias — prefer {@link openInNewBrowserTab} or {@link openInDetachedBrowserWindow}. */
+export const openInNewBrowserWindow = openInNewBrowserTab;
+
+/** True when this browsing context is an installed-like PWA (WCO / standalone / …). */
+export const isInstalledPwaDisplayContext = (): boolean => {
+    if (typeof globalThis === "undefined") return false;
+    try {
+        const nav = globalThis.navigator as Navigator & {
+            windowControlsOverlay?: { visible?: boolean };
+        };
+        if (nav?.windowControlsOverlay?.visible) return true;
+    } catch {
+        /* ignore */
+    }
+    if (typeof globalThis.matchMedia !== "function") return false;
+    try {
+        for (const q of [
+            "(display-mode: window-controls-overlay)",
+            "(display-mode: standalone)",
+            "(display-mode: fullscreen)",
+            "(display-mode: minimal-ui)"
+        ]) {
+            if (globalThis.matchMedia(q).matches) return true;
+        }
+    } catch {
+        /* ignore */
+    }
+    return false;
+};
+
+/**
+ * Open a **detached window** for native-window mode (never a browser tab).
+ *
+ * INVARIANT:
+ * - Do **not** use bare `window.open(url, "_blank")` — Chromium/Edge treat that as a **tab**.
+ * - Do **not** fall back to {@link openInNewBrowserTab} (that is the `new-tab` mode).
+ * - Do **not** request `menubar`/`toolbar`/`location` — those force full browser chrome
+ *   and break PWA/WCO when the window is captured as an app window.
+ * - Use a unique window name + `popup=yes,width,height` so each Native open is a
+ *   separate window. From an installed PWA, size features still open another app window.
+ *
+ * Never hijack the opener via `location.assign`.
+ */
+export const openInDetachedBrowserWindow = (href: string): boolean => {
+    const url = String(href || "").trim();
+    if (!url || typeof window === "undefined") return false;
+    try {
+        /* Do NOT put noopener in the features string — that forces a null return even on success. */
+        const name = `cwsp-native-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+        const features = "popup,menubar=false,toolbar=false,location=false,width=1280,height=800";
+        const opened = window.open(url, name, features);
+        if (opened) {
+            try {
+                opened.opener = null;
+            } catch {
+                /* ignore */
+            }
+            return true;
+        }
+    } catch (e) {
+        console.warn("[home-view] openInDetachedBrowserWindow failed", e);
+    }
+    /* WHY: native-window ≠ new-tab — surface failure instead of silently opening a tab. */
+    return false;
+};
+
+/** True when href is (or resolves to) a same-origin app view path / bare view token. */
+export const parseSpeedDialViewFromHref = (raw: string): string => {
+    const input = String(raw || "").trim();
+    if (!input || /^(mailto:|blob:|data:)/i.test(input)) return "";
+    try {
+        if (/^https?:\/\//i.test(input)) {
+            const u = new URL(input);
+            if (typeof location !== "undefined" && u.origin !== location.origin) return "";
+            const seg = u.pathname.replace(/\/+$/, "").split("/").filter(Boolean).pop() || "";
+            const id = seg.toLowerCase();
+            if (!id || id === "home") return "";
+            return id === "markdown" ? "viewer" : id;
+        }
+    } catch {
+        return "";
+    }
+    if (input.startsWith("/")) {
+        const seg = input.replace(/^\//, "").split(/[/?#]/)[0].toLowerCase();
+        if (!seg || seg === "home") return "";
+        return seg === "markdown" ? "viewer" : seg;
+    }
+    const token = input.replace(/^#/, "").split(/[/?#]/)[0].trim().toLowerCase();
+    if (!token || token === "home" || /[.:]/.test(token)) return "";
+    return token === "markdown" ? "viewer" : token;
+};
+
+/**
+ * Prefer explicit `meta.href`; for view tiles synthesize path deep links
+ * (`/settings`, `/workcenter`, …) for Open link → new tab / native window.
+ */
+export const resolveSpeedDialItemHref = (item?: SpeedDialItem | null): string => {
+    if (!item?.id) return "";
+    const meta = getSpeedDialMeta(item.id);
+    const explicit = String(meta?.href || (item as any)?.href || "").trim();
+    if (explicit) return explicit;
+    const view = String(meta?.view || "").trim().replace(/^#/, "");
+    if (!view) return "";
+    return buildSpeedDialViewPathHref(view, true);
+};
 
 export const findSpeedDialItem = (id?: string | null) => {
     if (!id) return null;
