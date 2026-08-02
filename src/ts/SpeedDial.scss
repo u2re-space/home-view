@@ -1,5 +1,6 @@
 // Orientbox + launcher grid: swaps logical 4×8 into 8×4 on landscape (orient 1/3) via `--cs-layout-*`.
 @use "../../../../projects/veela.css/src/scss/index.scss" as *;
+@use "../../../../projects/fl.ui/src/styles/runtime/basic/design/index.scss" as *;
 /* WHY: Veela `compute_grid_item_cell` / `compute_orient_grid_layout` reference `--get-oriented-*` CSS functions; they are defined here, not in the Veela barrel. Without this import, `--cs-grid-*` never resolves and every `.ui-ws-item` stacks in cell (1,1). */
 @use "../scss/orientation-functions" as *;
 @use "../scss/home-host" as home-host;
@@ -170,7 +171,7 @@
             --drag-y: 0;
             --cs-drag-x: calc(var(--drag-x, 0) * 1px);
             --cs-drag-y: calc(var(--drag-y, 0) * 1px);
-            --tile-size: clamp(3.2rem, 7.5vmin, 4.6rem);
+            --tile-size: clamp(4.5rem, 12cqmin, 5rem);
 
             grid-column: clamp(1, calc(1 + round(nearest, var(--cs-grid-c, 0), 1)), var(--sd-inherit-cs-layout-c, var(--cs-layout-c, 4)));
             grid-row: clamp(1, calc(1 + round(nearest, var(--cs-grid-r, 0), 1)), var(--sd-inherit-cs-layout-r, var(--cs-layout-r, 8)));
@@ -293,6 +294,10 @@
 
                 &[data-shape="squircle"] {
                     border-radius: 22%;
+                }
+
+                &[data-shape="wavy"] {
+                    clip-path: var(--clip-path);
                 }
 
                 .ui-ws-item-icon-image {
@@ -572,7 +577,7 @@
 
         .ui-ws-item {
             @container (max-width: 28rem) {
-                --tile-size: clamp(2.6rem, 11cqmin, 4.2rem);
+                --tile-size: clamp(4rem, 12cqmin, 6rem);
 
                 .ui-ws-item-icon {
                     padding: 0.65rem;
