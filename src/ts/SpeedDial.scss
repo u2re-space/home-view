@@ -83,7 +83,7 @@
         grid-row: 1 / -1;
         grid-column: 1 / -1;
         /* WHY: Large desktop padding warps mobile cell hit-test (content box ≪ border box). */
-        padding: clamp(0.4rem, 2.5cqmin, var(--padding-lg));
+        padding: clamp(0.4rem, 2.5dvmin, var(--padding-lg));
         user-select: none;
         user-drag: none;
         -webkit-user-drag: none;
@@ -171,7 +171,7 @@
             --drag-y: 0;
             --cs-drag-x: calc(var(--drag-x, 0) * 1px);
             --cs-drag-y: calc(var(--drag-y, 0) * 1px);
-            --tile-size: clamp(4.5rem, 12cqmin, 5rem);
+            --tile-size: clamp(4.5rem, 12dvmin, 5rem);
 
             grid-column: clamp(1, calc(1 + round(nearest, var(--cs-grid-c, 0), 1)), var(--sd-inherit-cs-layout-c, var(--cs-layout-c, 4)));
             grid-row: clamp(1, calc(1 + round(nearest, var(--cs-grid-r, 0), 1)), var(--sd-inherit-cs-layout-r, var(--cs-layout-r, 8)));
@@ -577,7 +577,7 @@
 
         .ui-ws-item {
             @container (max-width: 28rem) {
-                --tile-size: clamp(4rem, 12cqmin, 6rem);
+                --tile-size: clamp(4rem, 12dvmin, 6rem);
 
                 .ui-ws-item-icon {
                     padding: 0.65rem;
