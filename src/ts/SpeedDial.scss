@@ -211,7 +211,11 @@
                 scale: 1;
 
                 .ui-ws-item-icon {
-                    background: color-mix(in oklab, var(--color-surface-container-high, #1f2937) 60%, transparent);
+                    background: color-mix(
+                        in oklab,
+                        var(--color-surface-container-high, var(--color-surface, #eee)) 88%,
+                        var(--color-primary, #5a7fff) 14%
+                    );
                 }
             }
 
@@ -261,12 +265,20 @@
                 max-block-size: var(--tile-size);
                 padding: clamp(0.45rem, 10%, 0.65rem);
 
-                background: color-mix(in oklab, var(--color-surface-container, #111827) 56%, transparent);
-                border: none;
+                /*
+                 * WHY: Light theme made tiles too washed (low-opacity surface). Punch glass fill
+                 * + slight primary tint so glyphs stay crisp on wallpaper.
+                 */
+                background: color-mix(
+                    in oklab,
+                    var(--color-surface-container-high, var(--color-surface-container, #e8e8ec)) 78%,
+                    var(--color-primary, #5a7fff) 10%
+                );
+                border: 1px solid color-mix(in oklab, var(--color-on-surface, #111) 12%, transparent);
                 /* WHY: box-shadow on backdrop-filter host is flattened — elevation on `.ui-ws-item-icon-under`. */
                 box-shadow: none;
-                backdrop-filter: blur(16px) saturate(1.2);
-                -webkit-backdrop-filter: blur(16px) saturate(1.2);
+                backdrop-filter: blur(18px) saturate(1.35);
+                -webkit-backdrop-filter: blur(18px) saturate(1.35);
                 filter: none;
 
                 border-radius: 22%;
@@ -297,17 +309,19 @@
 
                 ui-icon {
                     /* Phosphor `ui-icon` rasterizes via mask; size tracks the tile, not the overly large grid container. */
-                    --icon-size: clamp(1.65rem, 55%, 2.55rem);
+                    --icon-size: clamp(1.75rem, 58%, 2.7rem);
 
                     /*
-                     * WHY: `--icon-color` is consumed inside `UIPhosphorIcon` shadow; keep contrast on glass tiles.
-                     * Prefer primary on-surface tone so duotone glyphs stay legible on `--color-surface-container` tiles.
+                     * WHY: Glyph ink must be a concrete color for `@property --icon-color` (<color>).
+                     * `var(--color-on-surface)` can still be `--u2-color-mod(...)` mid-boot; pin theme
+                     * sides so light tiles never show white glyphs before Settings resync.
                      */
-                    --icon-color: var(
-                        --color-on-surface,
-                        var(--on-surface-color, color-mix(in oklch, var(--wf-md-on-surface, white) 88%, transparent))
+                    --icon-color: light-dark(
+                        --u2-color-mod(var(--base-color, var(--color-primary, #5a7fff)), 900),
+                        --u2-color-mod(var(--base-color, var(--color-primary, #5a7fff)), 100)
                     );
-                    color: var(--icon-color, currentColor);
+                    color: var(--icon-color);
+                    opacity: 1;
 
                     align-self: center;
                     justify-self: center;
@@ -324,7 +338,7 @@
                     line-height: 0;
                     z-index: 2;
                     pointer-events: none;
-                    filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.22));
+                    filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.35));
                 }
             }
 
@@ -345,7 +359,8 @@
                     justify-items: center;
                     align-items: start;
                     padding-block-start: 0.2rem;
-                    color: var(--on-surface-color, currentColor);
+                    /* INVARIANT: label ink follows wallpaper luminance (`--env-launcher-fg`), not app theme. */
+                    color: var(--env-launcher-fg, #f7f7f8);
                     background: transparent;
                     overflow: visible;
                     filter: none;
@@ -358,14 +373,11 @@
                         box-sizing: border-box;
 
                         font-family: inherit;
-                        font-size: clamp(0.65rem, calc(0.088 * var(--tile-size, 3.75rem)), 0.78rem);
-                        font-weight: 600;
+                        font-size: clamp(0.68rem, calc(0.09 * var(--tile-size, 3.75rem)), 0.82rem);
+                        font-weight: 650;
                         letter-spacing: 0.02em;
 
-                        /*
-                         * WHY: oklab mixes read cleaner on blurred wallpapers vs flat oklch-only in some Chromium builds.
-                         */
-                        color: color-mix(in oklab, var(--color-on-surface, var(--on-surface-color, currentColor)) 94%, transparent);
+                        color: var(--env-launcher-fg, #f7f7f8);
 
                         white-space: nowrap;
                         overflow: hidden;
@@ -380,8 +392,8 @@
                         margin-inline: auto;
 
                         text-shadow:
-                            0 1px 2px rgb(0 0 0 / 85%),
-                            0 0 10px rgb(0 0 0 / 40%);
+                            0 1px 2px var(--env-launcher-fg-shadow, rgb(0 0 0 / 0.88)),
+                            0 0 12px var(--env-launcher-fg-glow, rgb(0 0 0 / 0.45));
                         border: none;
                         /* WHY: blurred rect behind short labels read like a chunky 1×1-ish “box”; shadow carries contrast. */
                         background: transparent;
