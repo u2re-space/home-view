@@ -217,6 +217,7 @@
                         var(--color-surface-container-high, var(--color-surface, #eee)) 88%,
                         var(--color-primary, #5a7fff) 14%
                     );
+                    color: contrast-color(color-mix(in oklab, var(--color-surface-container-high, var(--color-surface, #eee)) 88%, var(--color-primary, #5a7fff) 14%));
                 }
             }
 
@@ -275,6 +276,7 @@
                     var(--color-surface-container-high, var(--color-surface-container, #e8e8ec)) 78%,
                     var(--color-primary, #5a7fff) 10%
                 );
+                color: contrast-color(color-mix(in oklab, var(--color-surface-container-high, var(--color-surface, #eee)) 88%, var(--color-primary, #5a7fff) 14%));
                 border: 1px solid color-mix(in oklab, var(--color-on-surface, #111) 12%, transparent);
                 /* WHY: box-shadow on backdrop-filter host is flattened — elevation on `.ui-ws-item-icon-under`. */
                 box-shadow: none;
@@ -554,6 +556,7 @@
         & > .ui-ws-item-icon-under .underlying-shadow-geometry {
             background: #000000af !important;
             transition: filter 200ms ease, box-shadow 200ms ease;
+            color: contrast-color(inherit(background-color));
         }
 
         & > .ui-ws-item-icon-under:has(+ .ui-ws-item:hover) .underlying-shadow-geometry {
@@ -598,6 +601,7 @@
         -webkit-backdrop-filter: blur(8px) saturate(1.05);
         pointer-events: auto;
         padding: 1rem;
+        color: contrast-color(color-mix(in oklab, #020617 58%, transparent));
     }
 
     .speed-dial-editor__form {
@@ -617,6 +621,7 @@
         border: none;
         background: var(--sd-editor-panel);
         color: var(--sd-editor-ink);
+        color: contrast-color(var(--sd-editor-panel));
         display: grid;
         grid-template-rows: auto minmax(0, 1fr) auto;
         max-block-size: min(86vh, 760px);
@@ -640,6 +645,7 @@
         --sd-editor-danger-ink: #fff7f7;
         background: var(--sd-editor-panel);
         color: var(--sd-editor-ink);
+        color: contrast-color(var(--sd-editor-panel));
         box-shadow:
             0 18px 48px -24px color-mix(in oklab, #0f172a 28%, transparent),
             0 0 0 1px var(--sd-editor-border) inset;
@@ -695,6 +701,7 @@
         background: var(--sd-editor-field-bg);
         color: var(--sd-editor-field-ink);
         caret-color: var(--sd-editor-field-ink);
+        color: contrast-color(var(--sd-editor-field-bg));
         padding: 0.55rem 0.7rem;
         outline: none;
         appearance: none;
@@ -722,6 +729,7 @@
         padding: 0.75rem 1rem;
         border-block-start: 1px solid var(--sd-editor-border);
         background: color-mix(in oklab, var(--sd-editor-field-bg) 55%, transparent);
+        color: contrast-color(inherit(background-color));
     }
 
     .speed-dial-editor__form :is(.modal-actions-left, .modal-actions-right) {
@@ -739,16 +747,19 @@
         cursor: pointer;
         color: var(--sd-editor-ink);
         background: color-mix(in oklab, var(--sd-editor-field-bg) 80%, transparent);
+        color: contrast-color(color-mix(in oklab, var(--sd-editor-field-bg) 80%, transparent));
     }
 
     .speed-dial-editor__form .btn.secondary {
         background: color-mix(in oklab, var(--sd-editor-field-bg) 65%, transparent);
+        color: contrast-color(color-mix(in oklab, var(--sd-editor-field-bg) 65%, transparent));
     }
 
     .speed-dial-editor__form .btn.save {
         border-color: color-mix(in oklab, var(--color-primary, #3b82f6) 60%, transparent);
         background: color-mix(in oklab, var(--color-primary, #3b82f6) 55%, #0b1220);
         color: #fff;
+        color: contrast-color(color-mix(in oklab, var(--color-primary, #3b82f6) 55%, #0b1220));
     }
 
     html[data-theme="light"] .speed-dial-editor__form .btn.save,
@@ -756,12 +767,14 @@
     .speed-dial-editor__form[data-theme="light"] .btn.save {
         background: color-mix(in oklab, var(--color-primary, #2563eb) 78%, #0f172a);
         color: #fff;
+        color: contrast-color(color-mix(in oklab, var(--color-primary, #2563eb) 78%, #0f172a));
     }
 
     .speed-dial-editor__form .btn.danger {
         border-color: color-mix(in oklab, var(--sd-editor-danger-bg) 70%, transparent);
         background: var(--sd-editor-danger-bg);
         color: var(--sd-editor-danger-ink);
+        color: contrast-color(var(--sd-editor-danger-bg));
     }
 
     .speed-dial-editor__form .btn:hover {
@@ -828,6 +841,7 @@
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
+            color: contrast-color(linear-gradient(135deg, var(--view-primary) 0%, light-dark(#0059a6, #3a8ad6) 100%));
         }
 
         &__subtitle {
@@ -853,6 +867,7 @@
             border-radius: 16px;
             background-color: var(--view-card-bg);
             color: var(--view-fg);
+            color: contrast-color(var(--view-card-bg));
             text-align: center;
             cursor: pointer;
             transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
