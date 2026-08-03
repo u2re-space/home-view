@@ -1,3 +1,0 @@
-@function value-or($value, $fallback) {
-    @return if($value == null, $fallback, $value);
-}

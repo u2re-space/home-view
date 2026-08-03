@@ -1,4 +1,4 @@
-/* WHY: View SCSS imports this path as `../lib/core/orient/viewport`; forwards Veela viewport/orient mixins. */
+/* WHY: View SCSS imports this path as `../lib/core/misc/viewport`; forwards Veela viewport/orient mixins. */
 @forward "../../../../../../projects/veela.css/src/scss/index.scss";
 
 @mixin viewport-fill {

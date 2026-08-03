@@ -64,11 +64,13 @@ export class HomeView implements View {
         }
 
         const root = document.createElement("section");
-        root.className = "view-home env-home-workspace";
+        /* WHY: `view-home--grid` + env-home-workspace → transparent desktop host (not marketing .view-home). */
+        root.className = "view-home view-home--grid env-home-workspace";
         root.dataset.view = "home";
-        root.id = "home";
+        /* WHY: SpeedDial root owns `#home` for paste/ctx selectors; avoid duplicate ids. */
+        root.id = "home-view";
 
-        setSpeedDialViewOpener((viewId, params) => {
+        const openFromLauncher = (viewId: string, params?: Record<string, string>) => {
             const p = { ...(params || {}) };
             const native = String(p.native || "");
             /* WHY: Open link / mono apps pass native=1 → Windows2 WCO (not a nested env desktop). */
@@ -76,7 +78,8 @@ export class HomeView implements View {
                 ...(native === "1" || native === "true" ? { native: "1" } : {}),
                 params: p
             } as ViewOptions);
-        });
+        };
+        setSpeedDialViewOpener(openFromLauncher);
 
         setHomeOverlayMountResolver(
             typeof this.shellContext?.resolveOverlayMountPoint === "function"
@@ -84,7 +87,8 @@ export class HomeView implements View {
                 : null
         );
 
-        initializeOrientedDesktop(root);
+        /* WHY: pass opener into SpeedDial/createCtxMenu so mount cannot clear it with undefined. */
+        initializeOrientedDesktop(root, openFromLauncher);
 
         this.element = root;
         return root;
