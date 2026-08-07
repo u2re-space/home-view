@@ -15,4 +15,4 @@ export {
     restoreWallpaperThemeCache,
     type CanvasLayerState,
     type WallpaperThemeSeeds,
-} from "fest/image";
+} from "@fest-lib/image";
