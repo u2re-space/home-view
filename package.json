@@ -9,6 +9,9 @@
     ".": "./dist/home-view.js",
     "./src": "./src/index.ts"
   },
+  "imports": {
+    "#fl-ui/*": "../../projects/fl.ui/src/ui/*.ts"
+  },
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "demo": "npm run dev",
