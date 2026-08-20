@@ -70,8 +70,20 @@ export class HomeView implements View {
         /* WHY: SpeedDial root owns `#home` for paste/ctx selectors; avoid duplicate ids. */
         root.id = "home-view";
 
-        const openFromLauncher = (viewId: string, params?: Record<string, string>) => {
-            const p = { ...(params || {}) };
+        const openFromLauncher = (viewId: string, paramsOrOpts?: Record<string, string> | ViewOptions) => {
+            const raw = (paramsOrOpts || {}) as Record<string, unknown>;
+            const nested =
+                raw.params && typeof raw.params === "object" && !Array.isArray(raw.params)
+                    ? (raw.params as Record<string, string>)
+                    : null;
+            const p: Record<string, string> = { ...(nested || {}) };
+            for (const [k, v] of Object.entries(raw)) {
+                if (k === "params" || k === "shellContext" || k === "initialData") continue;
+                if (v === undefined || v === null) continue;
+                if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
+                    p[k] = String(v);
+                }
+            }
             const native = String(p.native || "");
             /* WHY: Open link / mono apps pass native=1 → Windows2 WCO (not a nested env desktop). */
             this.dispatchShellRoute(viewId, {
