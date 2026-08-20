@@ -24,6 +24,17 @@ function faviconForHref(href: string, size = 64): string {
     }
 }
 
+/** Chrome `_favicon`, Google S2, or generic favicon URL — not Android adaptive bitmaps. */
+export function isBookmarkFaviconResourceUrl(raw: unknown): boolean {
+    const u = String(raw || "").trim().toLowerCase();
+    if (!u) return false;
+    if (u.includes("/_favicon/")) return true;
+    if (u.includes("s2/favicons")) return true;
+    if (u.includes("favicon")) return true;
+    if (u.startsWith("android-icon:")) return false;
+    return false;
+}
+
 export type BookmarkMenuEntry = {
     id: string;
     title: string;
@@ -36,7 +47,7 @@ export type BookmarksMenuApi = {
     listChildren: (folderId?: string) => Promise<BookmarkMenuEntry[]>;
     search: (query: string) => Promise<BookmarkMenuEntry[]>;
     open: (entry: BookmarkMenuEntry) => Promise<void>;
-    /** Prefer extension `_favicon` / large S2 when available. */
+    /** Prefer Google S2; extension `_favicon` is a fallback. */
     resolveIconUrl?: (href: string, size?: number) => string;
 };
 
@@ -131,6 +142,9 @@ export function createChromeBookmarksMenuApi(
     const resolveIconUrl = (href: string, size = 128): string => {
         const page = String(href || "").trim();
         if (!/^https?:\/\//i.test(page)) return "";
+        /* Default: Google S2 (consistent framed marks). Chrome _favicon only as fallback. */
+        const s2 = faviconForHref(page, size);
+        if (s2) return s2;
         try {
             const chromeRt = (globalThis as { chrome?: { runtime?: { getURL?: (p: string) => string } } }).chrome
                 ?.runtime;
@@ -141,15 +155,9 @@ export function createChromeBookmarksMenuApi(
                 return u.toString();
             }
         } catch {
-            /* fall through */
+            /* ignore */
         }
-        try {
-            const host = new URL(page).hostname;
-            if (!host) return "";
-            return faviconForHref(page, size);
-        } catch {
-            return faviconForHref(page, size);
-        }
+        return "";
     };
 
     return {
@@ -342,7 +350,7 @@ export function resolveSpeedDialBookmarkIconUrl(input: {
     return "";
 }
 
-/** Best favicon URL for Speed Dial tiles (prefer larger; fall back to S2). */
+/** Best favicon URL for Start / desktop — Google S2 first, then Chrome `_favicon`. */
 export function resolveBookmarkDesktopIconUrl(
     entry: BookmarkMenuEntry,
     api?: BookmarksMenuApi | null
@@ -350,11 +358,11 @@ export function resolveBookmarkDesktopIconUrl(
     const href = String(entry.url || "").trim();
     if (!href) return "";
     return (
-        api?.resolveIconUrl?.(href, DESKTOP_FAVICON_SIZE) ||
-        api?.resolveIconUrl?.(href, 128) ||
         faviconForHref(href, DESKTOP_FAVICON_SIZE) ||
         faviconForHref(href, 128) ||
         faviconForHref(href, 64) ||
+        api?.resolveIconUrl?.(href, DESKTOP_FAVICON_SIZE) ||
+        api?.resolveIconUrl?.(href, 128) ||
         ""
     );
 }
@@ -444,18 +452,33 @@ export async function applyBookmarkIconToPlate(
 
     const href = String(entry.url || "").trim();
     const candidates: string[] = [];
-    const fromApi256 = api?.resolveIconUrl?.(href, DESKTOP_FAVICON_SIZE) || "";
-    if (fromApi256) candidates.push(fromApi256);
-    const fromApi128 = api?.resolveIconUrl?.(href, 128) || "";
-    if (fromApi128 && !candidates.includes(fromApi128)) candidates.push(fromApi128);
-    const fromApi64 = api?.resolveIconUrl?.(href, 64) || "";
-    if (fromApi64 && !candidates.includes(fromApi64)) candidates.push(fromApi64);
+    /* Prefer Google S2 for Start Menu tiles; probe Chrome `_favicon` only if S2 fails. */
     const s2 = faviconForHref(href, DESKTOP_FAVICON_SIZE);
-    if (s2 && !candidates.includes(s2)) candidates.push(s2);
+    if (s2) candidates.push(s2);
     const s2128 = faviconForHref(href, 128);
     if (s2128 && !candidates.includes(s2128)) candidates.push(s2128);
     const s264 = faviconForHref(href, 64);
     if (s264 && !candidates.includes(s264)) candidates.push(s264);
+    const fromApi256 = api?.resolveIconUrl?.(href, DESKTOP_FAVICON_SIZE) || "";
+    if (fromApi256 && !candidates.includes(fromApi256)) candidates.push(fromApi256);
+    const fromApi128 = api?.resolveIconUrl?.(href, 128) || "";
+    if (fromApi128 && !candidates.includes(fromApi128)) candidates.push(fromApi128);
+    const fromApi64 = api?.resolveIconUrl?.(href, 64) || "";
+    if (fromApi64 && !candidates.includes(fromApi64)) candidates.push(fromApi64);
+    /* Chrome extension favicon as last resort (when API still returns S2-only). */
+    try {
+        const chromeRt = (globalThis as { chrome?: { runtime?: { getURL?: (p: string) => string } } }).chrome
+            ?.runtime;
+        if (typeof chromeRt?.getURL === "function" && href) {
+            const u = new URL(chromeRt.getURL("/_favicon/"));
+            u.searchParams.set("pageUrl", href);
+            u.searchParams.set("size", String(DESKTOP_FAVICON_SIZE));
+            const chromeFav = u.toString();
+            if (chromeFav && !candidates.includes(chromeFav)) candidates.push(chromeFav);
+        }
+    } catch {
+        /* ignore */
+    }
 
     /* Sync placeholder so the row is never blank while favicons load. */
     appendPhosphorGlyph(plate, "link");
