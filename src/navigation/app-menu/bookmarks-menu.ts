@@ -49,6 +49,8 @@ export type BookmarksMenuApi = {
     open: (entry: BookmarkMenuEntry) => Promise<void>;
     /** Prefer Google S2; extension `_favicon` is a fallback. */
     resolveIconUrl?: (href: string, size?: number) => string;
+    remove?: (entry: BookmarkMenuEntry) => Promise<boolean>;
+    update?: (id: string, patch: { title?: string; url?: string }) => Promise<BookmarkMenuEntry | null>;
 };
 
 const RECENT_KEY = "rs-app-menu-bookmark-recent";
@@ -69,7 +71,10 @@ export function getRegisteredBookmarksMenuApi(): BookmarksMenuApi | null {
 type ChromeBookmarksLike = {
     getTree: (...args: unknown[]) => unknown;
     getChildren: (...args: unknown[]) => unknown;
-    search: (...args: unknown[]) => unknown;
+    search?: (...args: unknown[]) => unknown;
+    remove?: (...args: unknown[]) => unknown;
+    removeTree?: (...args: unknown[]) => unknown;
+    update?: (...args: unknown[]) => unknown;
 };
 
 type ChromeBookmarkNode = {
@@ -209,6 +214,35 @@ export function createChromeBookmarksMenuApi(
                 /* fall through */
             }
             globalThis.open?.(href, "_blank", "noopener,noreferrer");
+        },
+        async remove(entry: BookmarkMenuEntry): Promise<boolean> {
+            const id = String(entry?.id || "").trim();
+            if (!id) return false;
+            try {
+                if (entry.folder) {
+                    if (typeof api.removeTree !== "function") return false;
+                    await callChrome<void>(api, "removeTree", id);
+                } else {
+                    if (typeof api.remove !== "function") return false;
+                    await callChrome<void>(api, "remove", id);
+                }
+                return true;
+            } catch {
+                return false;
+            }
+        },
+        async update(id: string, patch: { title?: string; url?: string }): Promise<BookmarkMenuEntry | null> {
+            const key = String(id || "").trim();
+            if (!key || typeof api.update !== "function") return null;
+            const body: { title?: string; url?: string } = {};
+            if (patch.title != null) body.title = String(patch.title || "").trim();
+            if (patch.url != null) body.url = String(patch.url || "").trim();
+            try {
+                const node = await callChrome<ChromeBookmarkNode>(api, "update", key, body);
+                return node ? nodeToEntry(node) : null;
+            } catch {
+                return null;
+            }
         }
     };
 }
