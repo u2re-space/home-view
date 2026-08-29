@@ -1,7 +1,10 @@
 /*
  * Filename: bookmarks-menu.ts
  * FullPath: modules/projects/fl.ui/src/ui/navigation/app-menu/bookmarks-menu.ts
- * Reason for changes: CRX Start / App Menu — Chrome bookmarks provider + favicon probe.
+ * FIND:bookmarks
+ * TAG:app-menu
+ * Change date and time: 22.50.00_29.08.2026
+ * Reason for changes: CRX Start / App Menu — Chrome bookmarks provider; create / update / remove hit chrome.bookmarks.
  */
 import {
     addSpeedDialItem,
@@ -51,7 +54,20 @@ export type BookmarksMenuApi = {
     resolveIconUrl?: (href: string, size?: number) => string;
     remove?: (entry: BookmarkMenuEntry) => Promise<boolean>;
     update?: (id: string, patch: { title?: string; url?: string }) => Promise<BookmarkMenuEntry | null>;
+    /**
+     * Create a URL bookmark or folder under `parentId` (`"0"` = Chrome root).
+     * Omit `url` to create a folder.
+     */
+    create?: (parentId: string | undefined, spec: { title: string; url?: string }) => Promise<BookmarkMenuEntry | null>;
 };
+
+/** Accept http(s) and other schemes; bare hosts become `https://…`. */
+export function normalizeBookmarkHref(raw: unknown): string {
+    const text = String(raw || "").trim();
+    if (!text) return "";
+    if (/^[a-z][a-z0-9+.-]*:/i.test(text)) return text;
+    return `https://${text}`;
+}
 
 const RECENT_KEY = "rs-app-menu-bookmark-recent";
 const PINNED_KEY = "rs-app-menu-bookmark-pinned";
@@ -72,6 +88,7 @@ type ChromeBookmarksLike = {
     getTree: (...args: unknown[]) => unknown;
     getChildren: (...args: unknown[]) => unknown;
     search?: (...args: unknown[]) => unknown;
+    create?: (...args: unknown[]) => unknown;
     remove?: (...args: unknown[]) => unknown;
     removeTree?: (...args: unknown[]) => unknown;
     update?: (...args: unknown[]) => unknown;
@@ -236,11 +253,48 @@ export function createChromeBookmarksMenuApi(
             if (!key || typeof api.update !== "function") return null;
             const body: { title?: string; url?: string } = {};
             if (patch.title != null) body.title = String(patch.title || "").trim();
-            if (patch.url != null) body.url = String(patch.url || "").trim();
+            if (patch.url != null) {
+                const href = normalizeBookmarkHref(patch.url);
+                if (href) body.url = href;
+            }
             try {
                 const node = await callChrome<ChromeBookmarkNode>(api, "update", key, body);
                 return node ? nodeToEntry(node) : null;
             } catch {
+                return null;
+            }
+        },
+        async create(
+            parentId: string | undefined,
+            spec: { title: string; url?: string }
+        ): Promise<BookmarkMenuEntry | null> {
+            if (typeof api.create !== "function") return null;
+            const title = String(spec.title || "").trim();
+            if (!title) return null;
+            const body: { parentId: string; title: string; url?: string } = {
+                parentId: String(parentId || "0"),
+                title
+            };
+            if (spec.url != null) {
+                const href = normalizeBookmarkHref(spec.url);
+                if (!href) return null;
+                body.url = href;
+            }
+            const attempt = async (pid: string): Promise<BookmarkMenuEntry | null> => {
+                const node = await callChrome<ChromeBookmarkNode>(api, "create", { ...body, parentId: pid });
+                return node ? nodeToEntry(node) : null;
+            };
+            try {
+                return await attempt(body.parentId);
+            } catch {
+                /* WHY: some Chromium builds reject URL nodes under root "0"; Bookmarks bar is "1". */
+                if (body.parentId === "0") {
+                    try {
+                        return await attempt("1");
+                    } catch {
+                        return null;
+                    }
+                }
                 return null;
             }
         }
@@ -318,6 +372,44 @@ export function unpinBookmarkFromStart(id: string): boolean {
         return true;
     } catch {
         return false;
+    }
+}
+
+const writeBookmarkList = (key: string, items: BookmarkMenuEntry[], max: number): void => {
+    localStorage.setItem(key, JSON.stringify(items.slice(0, max)));
+};
+
+/** Keep Start pin/recent tiles in sync after a chrome.bookmarks update. */
+export function syncStoredBookmark(entry: BookmarkMenuEntry): void {
+    const id = String(entry?.id || "").trim();
+    if (!id) return;
+    const patch = (list: BookmarkMenuEntry[]): BookmarkMenuEntry[] =>
+        list.map((item) =>
+            item.id === id
+                ? { ...item, title: entry.title || item.title, url: entry.url || item.url }
+                : item
+        );
+    try {
+        writeBookmarkList(PINNED_KEY, patch(readPinnedBookmarks()), MAX_PINNED);
+        writeBookmarkList(RECENT_KEY, patch(readRecentBookmarks()), MAX_RECENT);
+    } catch {
+        /* ignore quota */
+    }
+}
+
+/** Drop a deleted Chrome bookmark from Start pin/recent lists. */
+export function forgetBookmarkFromLists(id: string): void {
+    const key = String(id || "").trim();
+    if (!key) return;
+    unpinBookmarkFromStart(key);
+    try {
+        writeBookmarkList(
+            RECENT_KEY,
+            readRecentBookmarks().filter((item) => item.id !== key),
+            MAX_RECENT
+        );
+    } catch {
+        /* ignore quota */
     }
 }
 
