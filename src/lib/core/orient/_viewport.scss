@@ -1,5 +1,5 @@
-/* WHY: View SCSS imports this path as `../lib/core/misc/viewport`; forwards Veela viewport/orient mixins. */
-@forward "../../../../../../projects/veela.css/src/scss/index.scss";
+/* WHY: View SCSS consumes the canonical Veela interaction viewport surface. */
+@forward "veela-lib/interact/viewport";
 
 @mixin viewport-fill {
     inline-size: 100%;
